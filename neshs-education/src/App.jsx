@@ -7,7 +7,6 @@ import {
   Play, ScanLine, KeyRound, Quote, GraduationCap,
   Settings, Globe, Accessibility, HardDrive, ExternalLink, Loader2, Sun, Moon
 } from 'lucide-react';
-import { supabase } from './supabaseClient';
 
 // ============================================================
 // PALETTES — Fluorescent Blue on Blue Charcoal (dark) / Fluorescent Blue on White (light)
@@ -137,139 +136,6 @@ function PermissionModal({ open, label, onAllow, onDeny }) {
           <Btn className="flex-1" onClick={onAllow}>Allow</Btn>
         </div>
       </Card>
-    </div>
-  );
-}
-
-// Activity history component (adapted from Downloads/11.js) -----------------
-function ActivityHistory() {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [inputAction, setInputAction] = useState('');
-  const [historyError, setHistoryError] = useState('');
-
-  const usingSupabase = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setHistoryError('');
-      try {
-        if (usingSupabase && supabase) {
-          // fetch remote
-          const { data: remoteData, error: remoteError } = await supabase.from('user_history').select('*').order('created_at', { ascending: false });
-          if (remoteError) throw new Error(remoteError.message || JSON.stringify(remoteError));
-
-          // fetch local cache and migrate any missing entries
-          const res = await window.storage.get(STORAGE_KEY + '_history', true).catch(() => null);
-          const localData = res && res.value ? JSON.parse(res.value) : [];
-
-          const toInsert = Array.isArray(localData) ? localData.filter(ld => !remoteData.some(rd => rd.created_at === ld.created_at && rd.action === ld.action)) : [];
-          if (toInsert.length > 0) {
-            const insertPayload = toInsert.map(i => ({ action: i.action, created_at: i.created_at }));
-            const { data: inserted, error: insertErr } = await supabase.from('user_history').insert(insertPayload).select();
-            if (insertErr) {
-              console.error('Supabase insert error during migration:', insertErr);
-              if (!cancelled) setHistory(remoteData || []);
-            } else {
-              // save a local backup and clear original local cache
-              try {
-                await window.storage.set(STORAGE_KEY + '_history_backup', JSON.stringify(localData || []), true);
-                await window.storage.set(STORAGE_KEY + '_history', JSON.stringify([]), true);
-              } catch (bkErr) {
-                console.error('Failed to backup/clear local history:', bkErr);
-              }
-              const merged = [...(inserted || []), ...(remoteData || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-              if (!cancelled) setHistory(merged);
-            }
-          } else {
-            if (!cancelled) setHistory(remoteData || []);
-          }
-        } else {
-          const res = await window.storage.get(STORAGE_KEY + '_history', true);
-          if (res && res.value && !cancelled) {
-            const data = JSON.parse(res.value);
-            setHistory(Array.isArray(data) ? data : []);
-          }
-        }
-      } catch (err) {
-        console.error('Error loading history:', err);
-        if (!cancelled) setHistoryError('Could not load activity history.');
-      }
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const saveHistoryToStorage = async (arr) => {
-    try {
-      await window.storage.set(STORAGE_KEY + '_history', JSON.stringify(arr), true);
-    } catch (err) {
-      console.error('Error saving history:', err);
-    }
-  };
-
-  const addHistory = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    if (!inputAction.trim()) return;
-    setHistoryError('');
-    const actionText = inputAction.trim();
-
-    if (usingSupabase && supabase) {
-      const { data, error } = await supabase.from('user_history').insert([{ action: actionText }]).select();
-      if (error) {
-        console.error('Error saving action to Supabase:', error.message || error);
-        setHistoryError('Failed to save action to server.');
-      } else if (data && data[0]) {
-        setHistory(prev => [data[0], ...prev]);
-        setInputAction('');
-      }
-      return;
-    }
-
-    try {
-      const item = { id: nextId(), action: actionText, created_at: new Date().toISOString() };
-      const newArr = [item, ...history];
-      setHistory(newArr);
-      setInputAction('');
-      await saveHistoryToStorage(newArr);
-    } catch (err) {
-      console.error('Error saving history locally:', err);
-      setHistoryError('Failed to save action locally.');
-    }
-  };
-
-  return (
-    <div>
-      <div className="mb-4">
-        <h2 className="text-lg font-extrabold">Website Activity History</h2>
-      </div>
-      <form onSubmit={addHistory} className="mb-4 flex items-center gap-3">
-        <Field placeholder="Enter an action or state change..." value={inputAction} onChange={e => setInputAction(e.target.value)} />
-        <Btn type="submit">Save Action</Btn>
-      </form>
-
-      <div>
-        {historyError && (
-          <div className="mb-3 p-3 rounded-lg" style={{ backgroundColor: 'rgba(255,122,122,0.08)', color: C.danger, border: `1px solid rgba(255,122,122,0.2)` }}>
-            {historyError}
-          </div>
-        )}
-        {loading ? (
-          <p style={{ color: C.textDim }}>Loading records...</p>
-        ) : history.length === 0 ? (
-          <p style={{ color: C.textDim }}>No history found. Try adding one above!</p>
-        ) : (
-          <ul>
-            {history.map(item => (
-              <li key={item.id} className="mb-2">
-                <strong style={{ color: C.text }}>{item.action}</strong> — <small style={{ color: C.textDim }}>{new Date(item.created_at).toLocaleString()}</small>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </div>
   );
 }
@@ -579,10 +445,10 @@ export default function App() {
     if (a) logAction('deleted achiever', a.name);
   };
   const uploadAchieverPhoto = (id) => {
-    triggerRealUpload({ type: 'achieverPhotoDirect', id }, { accept: 'image/*', label: 'Allow access to your photos to set this achiever\u2019s picture.' });
+    triggerRealUpload({ type: 'achieverPhotoDirect', id }, { accept: 'image/*', label: 'Allow access to your photos to set this achievers picture.' });
   };
   const uploadAchieverPhotoInModal = () => {
-    triggerRealUpload({ type: 'achieverPhotoModal' }, { accept: 'image/*', label: 'Allow access to your photos to set this achiever\u2019s picture.' });
+    triggerRealUpload({ type: 'achieverPhotoModal' }, { accept: 'image/*', label: 'Allow access to your photos to set this achievers picture.' });
   };
   const addAchievement = (achieverId) => {
     const text = (achievementDraft[achieverId] || '').trim();
@@ -831,7 +697,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 font-sans" style={{ backgroundColor: C.bg, color: C.text }}>
         <Loader2 className="w-8 h-8 animate-spin" style={{ color: C.accent }} />
-        <p className="text-xs" style={{ color: C.textDim }}>Loading NESHS Portal…</p>
+        <p className="text-xs" style={{ color: C.textDim }}>Loading NESHS Portal</p>
       </div>
     );
   }
@@ -1056,9 +922,6 @@ export default function App() {
           )}
 
           <p className="text-[10px] font-bold uppercase mt-4 mb-2 pl-1" style={{ color: C.textDim }}>System</p>
-          <button onClick={() => setActiveTab('history')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold" style={activeTab === 'history' ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
-            <Clock className="w-4 h-4" /> Activity History
-          </button>
           <button onClick={() => setActiveTab('author')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold" style={activeTab === 'author' ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
             <User className="w-4 h-4" /> Author Profile
           </button>
@@ -1149,12 +1012,6 @@ export default function App() {
                 </>
               )}
               {isCreator && !authorEditing && <Btn variant="ghost" className="mt-4" onClick={() => setAuthorEditing(true)} reducedMotion={reducedMotion}><Edit className="w-3 h-3" /> Edit Profile</Btn>}
-            </Card>
-          )}
-
-          {activeTab === 'history' && (
-            <Card className="p-6">
-              <ActivityHistory />
             </Card>
           )}
 
@@ -1566,244 +1423,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* ANNOUNCEMENT MODAL */}
-      {annModal.open && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
-          <Card className="w-full max-w-lg">
-            <div className="px-6 py-4 flex justify-between items-center" style={{ borderBottom: `1px solid ${C.border}` }}>
-              <h2 className="text-sm font-bold">{annModal.data.id ? 'Edit Article' : 'Create Article/News'}</h2>
-              <button onClick={() => setAnnModal({ open: false, step: 1, data: null })} style={{ color: C.textDim }}><X className="w-4 h-4" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              {annModal.step === 1 ? (
-                <>
-                  <Field placeholder="Article Title *" value={annModal.data.title} onChange={e => setAnnModal({ ...annModal, data: { ...annModal.data, title: e.target.value } })} />
-                  <Btn className="w-full py-3" onClick={submitAnnouncementTitle} reducedMotion={reducedMotion}>Next: Add Media</Btn>
-                </>
-              ) : (
-                <>
-                  <textarea placeholder="Article details / release information" value={annModal.data.details} onChange={e => setAnnModal({ ...annModal, data: { ...annModal.data, details: e.target.value } })} className="w-full h-24 p-3 rounded-xl text-sm outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }} />
-                  <Btn variant="ghost" className="w-full" onClick={uploadAnnouncementMedia} reducedMotion={reducedMotion}><Upload className="w-4 h-4" /> Upload Photos &amp; Videos</Btn>
-                  {annModal.data.media.length > 0 && (
-                    <div className="grid grid-cols-4 gap-2">
-                      {annModal.data.media.map(m => (
-                        <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
-                          {m.type === 'video' ? <video src={m.url} className="w-full h-full object-cover" muted /> : <img src={m.url} alt={m.name} className="w-full h-full object-cover" />}
-                          <button onClick={() => removeAnnouncementMedia(m.id)} className="absolute top-1 right-1 p-0.5 rounded" style={{ backgroundColor: 'rgba(0,10,12,0.7)', color: C.danger }}><X className="w-3 h-3" /></button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <Btn className="w-full py-3" onClick={saveAnnouncement} disabled={!annModal.data.title.trim()} reducedMotion={reducedMotion}>Publish Article</Btn>
-                </>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* ACHIEVER MODAL */}
-      {achieverModal.open && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
-          <Card className="w-full max-w-md">
-            <div className="px-6 py-4 flex justify-between items-center" style={{ borderBottom: `1px solid ${C.border}` }}>
-              <h2 className="text-sm font-bold">{achieverModal.data.id ? 'Edit Achiever' : 'Add Achiever'}</h2>
-              <button onClick={() => setAchieverModal({ open: false, data: null })} style={{ color: C.textDim }}><X className="w-4 h-4" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <Field placeholder="Full Name *" value={achieverModal.data.name} onChange={e => setAchieverModal({ ...achieverModal, data: { ...achieverModal.data, name: e.target.value } })} />
-              <Field placeholder="Semester (e.g. SY 2026-2027, 1st Sem)" value={achieverModal.data.semester} onChange={e => setAchieverModal({ ...achieverModal, data: { ...achieverModal.data, semester: e.target.value } })} />
-              <textarea placeholder="Life motto or quote" value={achieverModal.data.quote} onChange={e => setAchieverModal({ ...achieverModal, data: { ...achieverModal.data, quote: e.target.value } })} className="w-full h-20 p-3 rounded-xl text-sm outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }} />
-              <Btn variant="ghost" className="w-full" onClick={uploadAchieverPhotoInModal} reducedMotion={reducedMotion}>
-                {achieverModal.data.photo ? <img src={achieverModal.data.photo} alt="" className="w-5 h-5 rounded object-cover" /> : <Upload className="w-4 h-4" />} {achieverModal.data.photo ? 'Change Photo' : 'Upload Photo'}
-              </Btn>
-              <Btn className="w-full py-3" onClick={saveAchiever} reducedMotion={reducedMotion}>Save Achiever</Btn>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* ADD FOLDER MODAL */}
-      {addFolderOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
-          <Card className="w-full max-w-md">
-            <div className="px-6 py-4 flex justify-between items-center" style={{ borderBottom: `1px solid ${C.border}` }}>
-              <h2 className="text-sm font-bold"><FolderPlus className="inline w-4 h-4 mr-2" style={{ color: C.accent }} />Add Folder</h2>
-              <button onClick={() => { setAddFolderOpen(false); setFolderStep(1); }} style={{ color: C.textDim }}><X className="w-4 h-4" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              {folderStep === 1 ? (
-                <>
-                  <Field placeholder="Folder title..." value={newFolder.title} onChange={e => setNewFolder({ ...newFolder, title: e.target.value })} />
-                  <Btn className="w-full py-3" onClick={() => setFolderStep(2)} disabled={!newFolder.title.trim()} reducedMotion={reducedMotion}>Next</Btn>
-                </>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    {CORE_MODULES.map(m => (
-                      <button key={m.id} onClick={() => setNewFolder({ ...newFolder, module: m.id })} className="p-4 rounded-xl text-left flex flex-col gap-2" style={newFolder.module === m.id ? { backgroundColor: C.accentDim, border: `1px solid ${C.accent}` } : { backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
-                        <m.icon className="w-5 h-5" style={{ color: newFolder.module === m.id ? C.accent : C.textDim }} />
-                        <span className="text-xs font-bold">{m.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <Btn className="w-full py-3" onClick={createFolder} reducedMotion={reducedMotion}>Create Folder</Btn>
-                </>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* SECTIONS SIDE PANEL */}
-      {sectionPanelOpen && (
-        <div className="fixed inset-0 z-[250] flex justify-end" style={{ backgroundColor: 'rgba(0,10,12,0.7)' }} onClick={() => setSectionPanelOpen(false)}>
-          <div className="w-full max-w-sm h-full p-6 overflow-y-auto" style={{ backgroundColor: C.panel, borderLeft: `1px solid ${C.border}` }} onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-sm font-bold">Sections</h2>
-              <button onClick={() => setSectionPanelOpen(false)} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
-            </div>
-            <div className="space-y-2 mb-6">
-              {sections.map(s => (
-                <div key={s.id} className="p-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
-                  <button onClick={() => toggleSectionActive(s.id)} className="flex items-center gap-2 text-left flex-1">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.active ? '#4ADE80' : C.border }} />
-                    <span className="text-xs font-semibold">{s.title}</span>
-                  </button>
-                  <button onClick={() => deleteSection(s.id)} style={{ color: C.danger }}><Trash2 className="w-4 h-4" /></button>
-                </div>
-              ))}
-              {sections.length === 0 && <p className="text-xs" style={{ color: C.textDim }}>No sections created yet.</p>}
-            </div>
-            {!addSectionOpen ? (
-              <Btn variant="ghost" className="w-full" onClick={() => setAddSectionOpen(true)} reducedMotion={reducedMotion}><Plus className="w-4 h-4" /> Add Section</Btn>
-            ) : (
-              <div className="space-y-3">
-                <Field placeholder="Strand (e.g. STEM)" value={newSection.strand} onChange={e => setNewSection({ ...newSection, strand: e.target.value })} />
-                <select value={newSection.grade} onChange={e => setNewSection({ ...newSection, grade: e.target.value })} className="w-full px-4 py-3 rounded-xl text-sm outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }}>
-                  <option value="11">Grade 11</option>
-                  <option value="12">Grade 12</option>
-                </select>
-                <Field placeholder="Section Name (e.g. A)" value={newSection.name} onChange={e => setNewSection({ ...newSection, name: e.target.value })} />
-                <div className="flex gap-2">
-                  <Btn variant="ghost" className="flex-1" onClick={() => setAddSectionOpen(false)} reducedMotion={reducedMotion}>Cancel</Btn>
-                  <Btn className="flex-1" onClick={() => { createSection(); setAddSectionOpen(false); }} reducedMotion={reducedMotion}>Create</Btn>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* SETTINGS & PRIVACY DRAWER */}
-      <div className={`fixed inset-0 z-[290] ${motionTransition} ${isSettingsOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} style={{ backgroundColor: 'rgba(0,10,12,0.8)' }}>
-        <div className={`fixed inset-y-0 right-0 w-full max-w-md p-6 flex flex-col ${motionTransition} ${isSettingsOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ backgroundColor: C.panel, borderLeft: `1px solid ${C.border}` }}>
-          <div className="flex items-center justify-between pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setIsSettingsOpen(false)} className="p-2 rounded-xl" style={{ backgroundColor: C.panelAlt, color: C.textDim }}>
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h2 className="text-base font-bold">Settings &amp; Privacy</h2>
-                <p className="text-[11px]" style={{ color: C.textDim }}>Experience, preferences &amp; privacy options</p>
-              </div>
-            </div>
-            <button onClick={() => setIsSettingsOpen(false)} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
-          </div>
-
-          <div className="relative my-4">
-            <Search className="w-4 h-4 absolute left-3.5 top-3" style={{ color: C.textDim }} />
-            <Field placeholder="Search settings..." value={settingsSearch} onChange={e => setSettingsSearch(e.target.value)} className="pl-9" />
-          </div>
-
-          <div className="flex-1 overflow-y-auto space-y-6 pr-1">
-            <div>
-              <p className="text-xs font-bold mb-1" style={{ color: C.text }}>Tools and Resources</p>
-              <p className="text-[10px] mb-2" style={{ color: C.textDim }}>Manage privacy, visibility, and your default section.</p>
-              <Card className="overflow-hidden divide-y" style={{ borderColor: C.border }}>
-                <div className="p-4 flex items-center justify-between" style={{ borderColor: C.border }}>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl" style={{ backgroundColor: C.accentDim, color: C.accent }}><User className="w-4 h-4" /></div>
-                    <div>
-                      <p className="text-xs font-semibold">Privacy Checkup</p>
-                      <p className="text-[10px]" style={{ color: C.textDim }}>Show your active status to other students</p>
-                    </div>
-                  </div>
-                  <Toggle checked={settings.profileVisibility} onChange={v => handleSettingChange('profileVisibility', v)} reducedMotion={reducedMotion} />
-                </div>
-                <div className="p-4 flex items-center justify-between" style={{ borderColor: C.border, borderTopWidth: 1 }}>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl" style={{ backgroundColor: C.accentDim, color: C.accent }}><HardDrive className="w-4 h-4" /></div>
-                    <div>
-                      <p className="text-xs font-semibold">Default Directory</p>
-                      <p className="text-[10px]" style={{ color: C.textDim }}>Section loaded automatically on login</p>
-                    </div>
-                  </div>
-                  <select value={settings.defaultDirectory} onChange={e => { handleSettingChange('defaultDirectory', e.target.value); setActiveSectionView(e.target.value); }} className="text-xs py-1 px-2 rounded-lg outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.accent }}>
-                    <option value="">None</option>
-                    {sectionOptions.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-                  </select>
-                </div>
-              </Card>
-            </div>
-
-            <div>
-              <p className="text-xs font-bold mb-1" style={{ color: C.text }}>Preferences</p>
-              <p className="text-[10px] mb-2" style={{ color: C.textDim }}>Customize how the portal looks and behaves.</p>
-              <Card className="overflow-hidden divide-y" style={{ borderColor: C.border }}>
-                <div className="p-4 flex items-center justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl" style={{ backgroundColor: C.accentDim, color: C.accent }}><Bell className="w-4 h-4" /></div>
-                    <div>
-                      <p className="text-xs font-semibold">Notifications</p>
-                      <p className="text-[10px]" style={{ color: C.textDim }}>Enable global system toast popups</p>
-                    </div>
-                  </div>
-                  <Toggle checked={settings.notifications} onChange={v => handleSettingChange('notifications', v)} reducedMotion={reducedMotion} />
-                </div>
-                <div className="p-4 flex items-center justify-between" style={{ borderTopWidth: 1, borderColor: C.border }}>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl" style={{ backgroundColor: C.accentDim, color: C.accent }}><Accessibility className="w-4 h-4" /></div>
-                    <div>
-                      <p className="text-xs font-semibold">Accessibility</p>
-                      <p className="text-[10px]" style={{ color: C.textDim }}>Reduced motion — strip animations &amp; transitions</p>
-                    </div>
-                  </div>
-                  <Toggle checked={settings.reducedMotion} onChange={v => handleSettingChange('reducedMotion', v)} reducedMotion={reducedMotion} />
-                </div>
-                <div className="p-4 flex items-center justify-between" style={{ borderTopWidth: 1, borderColor: C.border }}>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl" style={{ backgroundColor: C.accentDim, color: C.accent }}><Globe className="w-4 h-4" /></div>
-                    <div>
-                      <p className="text-xs font-semibold">Language and Region</p>
-                      <p className="text-[10px]" style={{ color: C.textDim }}>Portal display localization</p>
-                    </div>
-                  </div>
-                  <select value={settings.language} onChange={e => handleSettingChange('language', e.target.value)} className="text-xs py-1 px-2 rounded-lg outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }}>
-                    <option value="English (US)">English (US)</option>
-                    <option value="Filipino">Filipino</option>
-                  </select>
-                </div>
-                <div className="p-4 flex items-center justify-between" style={{ borderTopWidth: 1, borderColor: C.border }}>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl" style={{ backgroundColor: C.accentDim, color: C.accent }}><Download className="w-4 h-4" /></div>
-                    <div>
-                      <p className="text-xs font-semibold">Media</p>
-                      <p className="text-[10px]" style={{ color: C.textDim }}>Auto-download authorized files when opened</p>
-                    </div>
-                  </div>
-                  <Toggle checked={settings.autoDownload} onChange={v => handleSettingChange('autoDownload', v)} reducedMotion={reducedMotion} />
-                </div>
-              </Card>
-            </div>
-          </div>
-
-          <div className="pt-4 text-center" style={{ borderTop: `1px solid ${C.border}` }}>
-            <p className="text-[10px] font-semibold" style={{ color: C.textDim }}>NESHS Portal — data saved automatically</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
