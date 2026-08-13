@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   ShieldCheck, User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
-  Megaphone, CheckCircle, Lock, Unlock, Menu, X, Clock,
+  Megaphone, CheckCircle, Lock, Unlock, Menu, X,
   Download, Bell, FolderPlus, Folder, ArrowRight, MapPin,
   Plus, Edit, Trash2, Image as ImageIcon, FileText, Upload, ChevronLeft,
   Play, ScanLine, KeyRound, Quote, GraduationCap,
-  Settings, Globe, Accessibility, HardDrive, ExternalLink, Loader2, Sun, Moon
+  Settings, ExternalLink, Loader2, Sun, Moon
 } from 'lucide-react';
 
 // ============================================================
@@ -263,6 +263,7 @@ export default function App() {
     } else if (context.type === 'authorPhoto') {
       const url = await fileToDataURL(files[0]);
       setAuthorPhotoUrl(url);
+      logAction('updated author photo', files[0].name || 'photo');
     } else if (context.type === 'idUpload') {
       const f = files[0];
       const url = await fileToDataURL(f);
@@ -281,11 +282,19 @@ export default function App() {
   // notifications log
   // ------------------------------------------------------------
   const [notifications, setNotifications] = useState([]);
+  const [history, setHistory] = useState([]); // persistent action history / audit trail
   const [notifUnread, setNotifUnread] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const logAction = (action, item) => {
-    setNotifications(prev => [{ id: nextId(), actor: currentUser?.name || 'System', action, item, ts: new Date().toLocaleString() }, ...prev].slice(0, 60));
+    const entry = { id: nextId(), actor: currentUser?.name || 'System', action, item, ts: new Date().toISOString() };
+    // notifications (short-lived UI) — keep recent
+    setNotifications(prev => [{ ...entry, ts: new Date().toLocaleString() }, ...prev].slice(0, 60));
     setNotifUnread(n => n + 1);
+    // persistent history (audit) — keep a larger rolling log and save it
+    setHistory(prev => {
+      const next = [entry, ...prev];
+      return next.slice(0, 1000);
+    });
   };
 
   // ------------------------------------------------------------
@@ -445,10 +454,10 @@ export default function App() {
     if (a) logAction('deleted achiever', a.name);
   };
   const uploadAchieverPhoto = (id) => {
-    triggerRealUpload({ type: 'achieverPhotoDirect', id }, { accept: 'image/*', label: 'Allow access to your photos to set this achievers picture.' });
+    triggerRealUpload({ type: 'achieverPhotoDirect', id }, { accept: 'image/*', label: "Allow access to your photos to set this achiever's picture." });
   };
   const uploadAchieverPhotoInModal = () => {
-    triggerRealUpload({ type: 'achieverPhotoModal' }, { accept: 'image/*', label: 'Allow access to your photos to set this achievers picture.' });
+    triggerRealUpload({ type: 'achieverPhotoModal' }, { accept: 'image/*', label: "Allow access to your photos to set this achiever's picture." });
   };
   const addAchievement = (achieverId) => {
     const text = (achievementDraft[achieverId] || '').trim();
@@ -513,6 +522,7 @@ export default function App() {
       id: nextId(), quizId: quiz.id, studentName: takeState.name, grade: takeState.grade,
       section: takeState.section, score, maxScore: quiz.items.length, ts: new Date().toLocaleString()
     }]);
+    logAction('quiz submitted', `${takeState.name} / ${quiz.title} (${score}/${quiz.items.length})`);
     setLastResult({ title: quiz.title, score, maxScore: quiz.items.length });
     setTakeState({ name: '', grade: '', section: '', gate: '', started: false, answers: {} });
     setQuizMode('list');
@@ -558,6 +568,8 @@ export default function App() {
           if (Array.isArray(data.quizzes)) setQuizzes(data.quizzes);
           if (Array.isArray(data.quizRecords)) setQuizRecords(data.quizRecords);
           if (Array.isArray(data.notifications)) setNotifications(data.notifications);
+          if (Array.isArray(data.history)) setHistory(data.history);
+          if (data.currentUser) setCurrentUser(data.currentUser);
           if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
           if (data.author) {
             setAuthorName(data.author.name || 'MARK NIEL PAITON');
@@ -583,6 +595,8 @@ export default function App() {
         accounts, sections, folders, announcements, projectFiles, achievers,
         quizzes, quizRecords, notifications, settings,
         author: { name: authorName, title: authorTitle, bio: authorBio, photo: authorPhotoUrl },
+        history,
+        currentUser,
         idCounter
       };
       let json;
@@ -613,6 +627,7 @@ export default function App() {
       const creatorAccount = existing || { email: CREATOR_EMAIL, name: 'MARK NIEL PAITON', role: 'editor', password: CREATOR_PASSWORD, sectionId: null, rank: null };
       if (!existing) setAccounts(prev => [...prev, creatorAccount]);
       setCurrentUser(creatorAccount);
+      logAction('signed in', CREATOR_EMAIL);
       return;
     }
 
@@ -620,6 +635,7 @@ export default function App() {
     if (!acc) return setAuthError('No account found for that email. Please sign up.');
     if (acc.password !== signinPassword) return setAuthError('Incorrect password.');
     setCurrentUser(acc);
+    logAction('signed in', acc.email);
   };
 
   // ------------------------------------------------------------
@@ -696,9 +712,9 @@ export default function App() {
   if (!dataLoaded) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 font-sans" style={{ backgroundColor: C.bg, color: C.text }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: C.accent }} />
-        <p className="text-xs" style={{ color: C.textDim }}>Loading NESHS Portal</p>
-      </div>
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: C.accent }} />
+          <p className="text-xs" style={{ color: C.textDim }}>Loading NESHS Portal</p>
+        </div>
     );
   }
 
