@@ -5,7 +5,8 @@ import {
   Download, Bell, FolderPlus, Folder, ArrowRight, MapPin,
   Plus, Edit, Trash2, Image as ImageIcon, FileText, Upload, ChevronLeft,
   Play, ScanLine, KeyRound, Quote, GraduationCap,
-  Settings, ExternalLink, Loader2, Sun, Moon
+  Settings, ExternalLink, Loader2, Sun, Moon, Eye, EyeOff, Globe,
+  Zap, FolderCog, ChevronDown, Info
 } from 'lucide-react';
 
 // ============================================================
@@ -46,6 +47,7 @@ const C = { ...DARK_PALETTE };
 
 const SCHOOL_NAME = 'NASUGBU EAST SENIOR HIGH SCHOOL';
 const SCHOOL_ADDRESS = 'BARANGAY LUMBANGAN, NASUGBU, BATANGAS';
+const DEFAULT_PORTAL_TITLE = 'NESHS SENIOR HIGH SCHOOL';
 const CREATOR_EMAIL = 'marknielpaiton@gmail.com';
 const CREATOR_PASSWORD = 'Paiton16';
 const EDITOR_GATE_PASSWORD = 'N35H@N45ugbuE45t!';
@@ -61,6 +63,8 @@ const CORE_MODULES = [
 
 const QUESTION_TYPES = ['Identification', 'Multiple Choice', 'Enumeration', 'True/False'];
 
+const LANGUAGE_OPTIONS = ['English (US)', 'English (UK)', 'Filipino'];
+
 let idCounter = 1000;
 const nextId = () => ++idCounter;
 
@@ -70,6 +74,12 @@ const fileToDataURL = (file) => new Promise((resolve, reject) => {
   reader.onerror = reject;
   reader.readAsDataURL(file);
 });
+
+const escapeCsvCell = (val) => {
+  const s = String(val ?? '');
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
 
 // small UI atoms --------------------------------------------------
 const Btn = ({ children, onClick, variant = 'solid', className = '', type = 'button', disabled, reducedMotion }) => {
@@ -97,6 +107,16 @@ const Field = (props) => (
   />
 );
 
+const Select = (props) => (
+  <select
+    {...props}
+    className={`w-full px-4 py-3 rounded-xl text-sm outline-none appearance-none ${props.className || ''}`}
+    style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }}
+  >
+    {props.children}
+  </select>
+);
+
 const Card = ({ children, className = '', style = {} }) => (
   <div className={`rounded-2xl ${className}`} style={{ backgroundColor: C.panel, border: `1px solid ${C.border}`, ...style }}>
     {children}
@@ -112,12 +132,31 @@ const Chip = ({ children }) => (
 // toggle switch atom -------------------------------------------------
 const Toggle = ({ checked, onChange, reducedMotion }) => (
   <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
     onClick={() => onChange(!checked)}
-    className={`w-11 h-6 rounded-full p-1 ${reducedMotion ? '' : 'transition-all duration-300'}`}
+    className={`w-11 h-6 rounded-full p-1 shrink-0 ${reducedMotion ? '' : 'transition-all duration-300'}`}
     style={{ backgroundColor: checked ? C.accent : C.panelAlt, border: `1px solid ${C.border}` }}
   >
     <div className={`w-4 h-4 bg-white rounded-full shadow-md ${reducedMotion ? '' : 'transition-all duration-300'} ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
   </button>
+);
+
+// settings row atom --------------------------------------------------
+const SettingsRow = ({ icon: Icon, label, desc, control }) => (
+  <div className="flex items-center justify-between gap-4 py-3.5" style={{ borderBottom: `1px solid ${C.border}` }}>
+    <div className="flex items-start gap-3 min-w-0">
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: C.accentDim }}>
+        <Icon className="w-4 h-4" style={{ color: C.accent }} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-bold">{label}</p>
+        {desc && <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>{desc}</p>}
+      </div>
+    </div>
+    <div className="shrink-0">{control}</div>
+  </div>
 );
 
 // permission modal -------------------------------------------------
@@ -186,6 +225,7 @@ export default function App() {
   const reducedMotion = settings.reducedMotion;
   const motionTransition = reducedMotion ? '' : 'transition-all duration-300';
   const motionBounce = reducedMotion ? '' : 'animate-bounce';
+  const hoverScale = reducedMotion ? '' : 'hover:scale-105';
 
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
@@ -194,6 +234,8 @@ export default function App() {
 
   const [toast, setToast] = useState(null);
   const triggerToast = (message, type = 'info') => {
+    // Notification preference gate: when the user has global toasts turned off,
+    // this exits immediately and nothing renders — wired to actual state, not a stub.
     if (!settings.notifications) return;
     setToast({ id: nextId(), message, type });
     setTimeout(() => setToast(t => (t && t.message === message ? null : t)), 3000);
@@ -201,7 +243,12 @@ export default function App() {
 
   const handleSettingChange = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    triggerToast(`Setting updated: ${key.replace(/([A-Z])/g, ' $1')}`);
+    // Keep the online-presence list honest in real time: toggling Profile
+    // Visibility off/on immediately hides/shows this account in the Online panel.
+    if (key === 'profileVisibility' && currentUser) {
+      setOnlineUsers(prev => prev.map(u => u.email === currentUser.email ? { ...u, visible: value } : u));
+    }
+    triggerToast(`Setting updated: ${key.replace(/([A-Z])/g, ' $1').trim()}`);
   };
 
   // permission modal plumbing
@@ -222,6 +269,17 @@ export default function App() {
     if (n.endsWith('.doc') || n.endsWith('.docx')) return 'Word Document';
     if (n.endsWith('.ppt') || n.endsWith('.pptx')) return 'PowerPoint';
     return 'File';
+  };
+
+  // Derives a readable display title from a raw uploaded filename, since the
+  // portal is responsible for title creation rather than the uploader typing one.
+  const deriveFileTitle = (filename) => {
+    const base = filename.replace(/\.[^/.]+$/, '');
+    return base
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, ch => ch.toUpperCase()) || filename;
   };
 
   const triggerRealUpload = (context, { accept = '*/*', multiple = false, label } = {}) => {
@@ -252,14 +310,40 @@ export default function App() {
     } else if (context.type === 'achieverPhotoDirect') {
       const url = await fileToDataURL(files[0]);
       setAchievers(prev => prev.map(a => a.id === context.id ? { ...a, photo: url } : a));
+      triggerToast('Achiever photo updated');
     } else if (context.type === 'projectFile') {
+      // The portal derives a clean title for every uploaded file automatically —
+      // uploaders never have to type one — and marks each file as processed &
+      // ready to view/play/open on-site, pending explicit download authorization.
       const items = await Promise.all(files.map(async f => ({
-        id: nextId(), name: f.name, kind: guessKind(f), mime: f.type, folderId: activeFolderId,
-        url: await fileToDataURL(f), authorized: false, uploadedBy: currentUser?.name || 'Unknown'
+        id: nextId(),
+        name: f.name,
+        title: deriveFileTitle(f.name),
+        kind: guessKind(f),
+        mime: f.type,
+        size: f.size,
+        folderId: activeFolderId,
+        url: await fileToDataURL(f),
+        authorized: false,
+        processed: true,
+        uploadedBy: currentUser?.name || 'Unknown',
+        uploadedAt: new Date().toLocaleString()
       })));
       setProjectFiles(prev => [...items, ...prev]);
-      items.forEach(f => logAction('uploaded file', f.name));
-      triggerToast('File uploaded successfully');
+      items.forEach(f => logAction('uploaded file', f.title));
+      triggerToast(items.length > 1 ? `${items.length} files uploaded successfully` : 'File uploaded successfully');
+    } else if (context.type === 'projectFileReplace') {
+      // Replaces the underlying file content of an existing entry while keeping
+      // its title, folder, and authorization state intact — the "rename + replace
+      // content" path, distinct from a plain title-only rename.
+      const f = files[0];
+      const url = await fileToDataURL(f);
+      const kind = guessKind(f);
+      setProjectFiles(prev => prev.map(pf => pf.id === context.id ? { ...pf, name: f.name, kind, mime: f.type, size: f.size, url, uploadedAt: new Date().toLocaleString() } : pf));
+      const existing = projectFiles.find(pf => pf.id === context.id);
+      logAction('replaced file content for', existing?.title || existing?.name || f.name);
+      triggerToast('File content replaced');
+      setViewerFile(prev => (prev && prev.id === context.id ? { ...prev, name: f.name, kind, mime: f.type, size: f.size, url } : prev));
     } else if (context.type === 'authorPhoto') {
       const url = await fileToDataURL(files[0]);
       setAuthorPhotoUrl(url);
@@ -327,31 +411,105 @@ export default function App() {
   // ------------------------------------------------------------
   // sidebar custom folders
   // ------------------------------------------------------------
-  const [folders, setFolders] = useState([]); // {id, title, module}
+  const [folders, setFolders] = useState([]); // {id, title, module, uploadDate?}
   const [addFolderOpen, setAddFolderOpen] = useState(false);
+  const [addFolderLockedModule, setAddFolderLockedModule] = useState(false); // true when opened from inside Project History — skips the module picker entirely
   const [folderStep, setFolderStep] = useState(1);
-  const [newFolder, setNewFolder] = useState({ title: '', module: 'announcements' });
+  const [folderError, setFolderError] = useState('');
+  const todayISO = () => new Date().toISOString().slice(0, 10);
+  const [newFolder, setNewFolder] = useState({ title: '', module: 'announcements', uploadDate: todayISO() });
+
+  // Opens the folder-creation modal already scoped to Project History, as a
+  // single-step "group name" prompt — no module question, since the module
+  // is implied by where the button was tapped.
+  const openProjectHistoryFolderCreate = () => {
+    setNewFolder({ title: '', module: 'projectHistory', uploadDate: todayISO() });
+    setAddFolderLockedModule(true);
+    setFolderStep(1);
+    setFolderError('');
+    setAddFolderOpen(true);
+  };
+
+  const closeAddFolderModal = () => {
+    setAddFolderOpen(false); setFolderStep(1); setAddFolderLockedModule(false); setFolderError('');
+    setNewFolder({ title: '', module: 'announcements', uploadDate: todayISO() });
+  };
 
   const createFolder = () => {
-    if (!newFolder.title.trim()) return;
-    const f = { id: `f-${nextId()}`, title: newFolder.title.trim(), module: newFolder.module };
+    // Give explicit feedback instead of a silent no-op — a swallowed failure
+    // here previously left the modal open with no error, so the user's next
+    // tap (often landing on the sidebar behind it) looked like the folder
+    // creation itself had "redirected" them elsewhere.
+    if (!newFolder.title.trim()) { setFolderError('Please enter a name for this group.'); return; }
+    if (newFolder.module === 'projectHistory' && !newFolder.uploadDate) { setFolderError('Please choose an upload date.'); return; }
+    setFolderError('');
+    const f = {
+      id: `f-${nextId()}`,
+      title: newFolder.title.trim(),
+      module: newFolder.module,
+      // Project History folders record the date the folder/upload batch was created;
+      // other modules don't need it, so it's left undefined for them.
+      uploadDate: newFolder.module === 'projectHistory' ? newFolder.uploadDate : undefined
+    };
     setFolders(prev => [f, ...prev]);
-    setAddFolderOpen(false); setFolderStep(1); setNewFolder({ title: '', module: 'announcements' });
+    // Land the user inside the folder they just created and on the Project
+    // History tab specifically — this must happen before the modal fully
+    // closes so there's no frame where activeTab still points at the old view.
+    if (f.module === 'projectHistory') {
+      setActiveTab(f.id);
+    }
+    closeAddFolderModal();
     logAction('created folder', f.title);
   };
   const deleteFolder = (id) => {
     const f = folders.find(x => x.id === id);
-    if (!window.confirm(`Delete the folder "${f?.title}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete the folder "${f?.title}"? This will also delete every file inside it. This cannot be undone.`)) return;
+    const filesInside = projectFiles.filter(pf => pf.folderId === id).length;
     setFolders(prev => prev.filter(x => x.id !== id));
+    // Cascade-delete: files/announcements/achievers/quizzes scoped to this folder
+    // become orphaned (invisible, but still taking up storage) if left behind.
+    setProjectFiles(prev => prev.filter(pf => pf.folderId !== id));
+    setAnnouncements(prev => prev.filter(a => a.folderId !== id));
+    setAchievers(prev => prev.filter(a => a.folderId !== id));
+    setQuizzes(prev => prev.filter(q => q.folderId !== id));
     setActiveTab(prev => (prev === id ? 'announcements' : prev));
-    if (f) logAction('deleted folder', f.title);
+    if (f) logAction('deleted folder', filesInside > 0 ? `${f.title} (${filesInside} file${filesInside === 1 ? '' : 's'})` : f.title);
   };
 
   const [activeTab, setActiveTab] = useState('announcements');
   const activeFolder = folders.find(f => f.id === activeTab);
   const activeModule = activeFolder ? activeFolder.module : activeTab;
   const activeFolderId = activeFolder ? activeFolder.id : null;
+  const projectHistoryFolders = folders.filter(f => f.module === 'projectHistory');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // desktop "close" toggle for the NESHS PORTAL sidebar
+
+  // ------------------------------------------------------------
+  // portal title — top-middle site name, renamable by creator/editor
+  // ------------------------------------------------------------
+  const [portalTitle, setPortalTitle] = useState(DEFAULT_PORTAL_TITLE);
+  const [portalTitleEditing, setPortalTitleEditing] = useState(false);
+  const [portalTitleDraft, setPortalTitleDraft] = useState('');
+  const startEditPortalTitle = () => { setPortalTitleDraft(portalTitle); setPortalTitleEditing(true); };
+  const savePortalTitle = () => {
+    // Belt-and-suspenders: even though the edit UI is only reachable by the
+    // Creator/Editors, re-check permission here too so saving never depends
+    // solely on which buttons happened to be rendered.
+    if (!canEditEverything) { setPortalTitleEditing(false); return; }
+    const title = portalTitleDraft.trim();
+    if (!title) return;
+    setPortalTitle(title);
+    setPortalTitleEditing(false);
+    logAction('renamed portal title to', title);
+    triggerToast('Portal name updated');
+  };
+
+  // ------------------------------------------------------------
+  // online presence — accounts currently signed in, tracked in shared storage
+  // ------------------------------------------------------------
+  const [onlineUsers, setOnlineUsers] = useState([]); // [{email, name, role, sectionId, visible}]
+  const [onlinePanelOpen, setOnlinePanelOpen] = useState(false);
+  const visibleOnlineUsers = onlineUsers.filter(u => u.visible !== false);
 
   // ------------------------------------------------------------
   // announcements
@@ -401,7 +559,7 @@ export default function App() {
   // ------------------------------------------------------------
   // project history — real upload, view/play inline, gated downloads
   // ------------------------------------------------------------
-  const [projectFiles, setProjectFiles] = useState([]); // {id,name,kind,mime,folderId,url,authorized,uploadedBy}
+  const [projectFiles, setProjectFiles] = useState([]); // {id,name,title,kind,mime,folderId,url,authorized,processed,uploadedBy}
   const [viewerFile, setViewerFile] = useState(null);
   const uploadProjectFile = () => {
     triggerRealUpload({ type: 'projectFile' }, { accept: 'image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx', multiple: true, label: 'Allow access to your files to upload images, videos, Word or PowerPoint documents.' });
@@ -409,15 +567,19 @@ export default function App() {
   const deleteProjectFile = (id) => {
     const f = projectFiles.find(x => x.id === id);
     setProjectFiles(prev => prev.filter(x => x.id !== id));
-    if (f) logAction('deleted file', f.name);
+    if (viewerFile && viewerFile.id === id) setViewerFile(null);
+    if (f) logAction('deleted file', f.title || f.name);
   };
   const toggleFileAuthorization = (id) => {
     setProjectFiles(prev => prev.map(f => f.id === id ? { ...f, authorized: !f.authorized } : f));
     const f = projectFiles.find(x => x.id === id);
-    if (f) logAction(f.authorized ? 'revoked download access for' : 'authorized download for', f.name);
+    if (f) logAction(f.authorized ? 'revoked download access for' : 'authorized download for', f.title || f.name);
     triggerToast('Download authorization updated');
+    // keep the open viewer's authorization flag in sync so the download button
+    // enables/disables immediately without needing to reopen the viewer
+    setViewerFile(prev => (prev && prev.id === id ? { ...prev, authorized: !prev.authorized } : prev));
   };
-  const canDownloadFile = (f) => canEditEverything || f.authorized;
+  const canDownloadFile = (f) => canEditEverything || !!f.authorized;
   const downloadFile = (f) => {
     if (!canDownloadFile(f)) { triggerToast('This file has not been authorized for download yet.'); return; }
     const a = document.createElement('a');
@@ -426,7 +588,25 @@ export default function App() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    if (settings.autoDownload) triggerToast(`Downloaded ${f.name}`);
+    logAction('downloaded file', f.title || f.name);
+    if (settings.autoDownload) triggerToast(`Downloaded ${f.title || f.name}`);
+  };
+
+  // Rename (title) + optional replace-content editing for an uploaded file.
+  const [renameModal, setRenameModal] = useState({ open: false, id: null, title: '' });
+  const openRenameModal = (f) => setRenameModal({ open: true, id: f.id, title: f.title || f.name });
+  const saveRename = () => {
+    const title = renameModal.title.trim();
+    if (!title) return;
+    setProjectFiles(prev => prev.map(f => f.id === renameModal.id ? { ...f, title } : f));
+    const f = projectFiles.find(x => x.id === renameModal.id);
+    logAction('renamed file', f ? `${f.title || f.name} \u2192 ${title}` : title);
+    triggerToast('File renamed');
+    setViewerFile(prev => (prev && prev.id === renameModal.id ? { ...prev, title } : prev));
+    setRenameModal({ open: false, id: null, title: '' });
+  };
+  const replaceProjectFileContent = (id) => {
+    triggerRealUpload({ type: 'projectFileReplace', id }, { accept: 'image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx', label: 'Allow access to your files to replace this file\u2019s content.' });
   };
 
   // ------------------------------------------------------------
@@ -446,11 +626,13 @@ export default function App() {
       return exists ? prev.map(a => a.id === payload.id ? payload : a) : [payload, ...prev];
     });
     logAction(achieverModal.data.id ? 'edited achiever' : 'added achiever', payload.name);
+    triggerToast(achieverModal.data.id ? 'Achiever updated' : 'Achiever added');
     setAchieverModal({ open: false, data: null });
   };
   const deleteAchiever = (id) => {
     const a = achievers.find(x => x.id === id);
     setAchievers(prev => prev.filter(x => x.id !== id));
+    if (expandedAchieverId === id) setExpandedAchieverId(null);
     if (a) logAction('deleted achiever', a.name);
   };
   const uploadAchieverPhoto = (id) => {
@@ -480,6 +662,7 @@ export default function App() {
   const [builder, setBuilder] = useState(null); // {step, id, title, password, items}
   const [takeState, setTakeState] = useState({ name: '', grade: '', section: '', gate: '', started: false, answers: {} });
   const [takeError, setTakeError] = useState('');
+  const [recordSectionFilter, setRecordSectionFilter] = useState('all');
 
   const startBuilder = () => { setBuilder({ step: 1, id: null, title: '', password: '', items: [] }); setQuizMode('builder'); };
   const builderNext = () => {
@@ -507,11 +690,13 @@ export default function App() {
   const deleteQuiz = (id) => {
     const q = quizzes.find(x => x.id === id);
     setQuizzes(prev => prev.filter(x => x.id !== id));
+    if (activeQuizId === id) { setActiveQuizId(null); setQuizMode('list'); }
     if (q) logAction('deleted quiz', q.title);
   };
   const [lastResult, setLastResult] = useState(null);
   const submitQuiz = () => {
     const quiz = quizzes.find(q => q.id === activeQuizId);
+    if (!quiz) { setQuizMode('list'); return; }
     let score = 0;
     quiz.items.forEach((item, idx) => {
       const given = (takeState.answers[idx] || '').toString().toLowerCase().trim();
@@ -526,6 +711,26 @@ export default function App() {
     setLastResult({ title: quiz.title, score, maxScore: quiz.items.length });
     setTakeState({ name: '', grade: '', section: '', gate: '', started: false, answers: {} });
     setQuizMode('list');
+  };
+
+  // Section-segregated CSV export for a quiz's record sheet.
+  const exportRecordsCsv = (quiz, records) => {
+    const rows = [
+      ['Student', 'Grade', 'Section', 'Score', 'Max Score', 'Submitted At'],
+      ...records.map(r => [r.studentName, r.grade, r.section, r.score, r.maxScore, r.ts])
+    ];
+    const csv = rows.map(row => row.map(escapeCsvCell).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(quiz.title || 'quiz-records').replace(/[^\w\-]+/g, '_')}_records.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    logAction('exported records for', quiz.title);
+    triggerToast('Record sheet exported');
   };
 
   // ------------------------------------------------------------
@@ -569,6 +774,8 @@ export default function App() {
           if (Array.isArray(data.quizRecords)) setQuizRecords(data.quizRecords);
           if (Array.isArray(data.notifications)) setNotifications(data.notifications);
           if (Array.isArray(data.history)) setHistory(data.history);
+          if (Array.isArray(data.onlineUsers)) setOnlineUsers(data.onlineUsers);
+          if (typeof data.portalTitle === 'string' && data.portalTitle.trim()) setPortalTitle(data.portalTitle);
           if (data.currentUser) setCurrentUser(data.currentUser);
           if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
           if (data.author) {
@@ -578,7 +785,12 @@ export default function App() {
             setAuthorPhotoUrl(data.author.photo || null);
           }
           if (typeof data.idCounter === 'number') idCounter = Math.max(idCounter, data.idCounter);
-          if (data.settings && data.settings.defaultDirectory) setActiveSectionView(data.settings.defaultDirectory);
+          // Default Directory setting drives the initial active section/folder view
+          // on login rather than a hardcoded tab.
+          if (data.settings && data.settings.defaultDirectory) {
+            setActiveSectionView(data.settings.defaultDirectory);
+            setActiveTab(data.settings.defaultDirectory);
+          }
         }
       } catch (err) {
         // nothing saved yet on this artifact — that's fine, we start fresh
@@ -593,7 +805,7 @@ export default function App() {
     const handle = setTimeout(() => {
       const payload = {
         accounts, sections, folders, announcements, projectFiles, achievers,
-        quizzes, quizRecords, notifications, settings,
+        quizzes, quizRecords, notifications, settings, onlineUsers, portalTitle,
         author: { name: authorName, title: authorTitle, bio: authorBio, photo: authorPhotoUrl },
         history,
         currentUser,
@@ -611,11 +823,24 @@ export default function App() {
         .catch(() => setSaveError('Changes could not be saved — storage may be full. Try removing large files or images.'));
     }, 500);
     return () => clearTimeout(handle);
-  }, [accounts, sections, folders, announcements, projectFiles, achievers, quizzes, quizRecords, notifications, settings, authorName, authorTitle, authorBio, authorPhotoUrl, dataLoaded]);
+  }, [accounts, sections, folders, announcements, projectFiles, achievers, quizzes, quizRecords, notifications, settings, onlineUsers, portalTitle, authorName, authorTitle, authorBio, authorPhotoUrl, dataLoaded]);
 
   // ------------------------------------------------------------
   // AUTH: sign in
   // ------------------------------------------------------------
+  // Adds/removes an account from the shared "currently signed in" presence list.
+  // This reflects real sign-ins/sign-outs across devices via shared storage —
+  // not a live heartbeat, just session presence.
+  const markUserOnline = (acc) => {
+    setOnlineUsers(prev => {
+      const withoutMe = prev.filter(u => u.email !== acc.email);
+      return [...withoutMe, { email: acc.email, name: acc.name, role: acc.role, sectionId: acc.sectionId || null, visible: true }];
+    });
+  };
+  const markUserOffline = (email) => {
+    setOnlineUsers(prev => prev.filter(u => u.email !== email));
+  };
+
   const handleSignIn = (e) => {
     e.preventDefault();
     setAuthError('');
@@ -627,6 +852,9 @@ export default function App() {
       const creatorAccount = existing || { email: CREATOR_EMAIL, name: 'MARK NIEL PAITON', role: 'editor', password: CREATOR_PASSWORD, sectionId: null, rank: null };
       if (!existing) setAccounts(prev => [...prev, creatorAccount]);
       setCurrentUser(creatorAccount);
+      markUserOnline(creatorAccount);
+      // Apply the Default Directory preference on login, falling back to Announcements.
+      setActiveTab(settings.defaultDirectory || 'announcements');
       logAction('signed in', CREATOR_EMAIL);
       return;
     }
@@ -635,6 +863,8 @@ export default function App() {
     if (!acc) return setAuthError('No account found for that email. Please sign up.');
     if (acc.password !== signinPassword) return setAuthError('Incorrect password.');
     setCurrentUser(acc);
+    markUserOnline(acc);
+    setActiveTab(settings.defaultDirectory || 'announcements');
     logAction('signed in', acc.email);
   };
 
@@ -700,11 +930,19 @@ export default function App() {
     };
     setAccounts(prev => [...prev, account]);
     setCurrentUser(account);
+    markUserOnline(account);
+    setActiveTab(settings.defaultDirectory || 'announcements');
     logAction('account created', account.email);
     resetWizard();
   };
 
-  const handleLogout = () => { setCurrentUser(null); setActiveTab('announcements'); resetWizard(); };
+  const handleLogout = () => {
+    if (currentUser) markUserOffline(currentUser.email);
+    setCurrentUser(null);
+    setActiveTab('announcements');
+    setPortalTitleEditing(false);
+    resetWizard();
+  };
 
   // ================================================================
   // INITIAL LOAD SCREEN
@@ -879,13 +1117,19 @@ export default function App() {
   // MAIN APP
   // ================================================================
   const sectionOptions = sections.length > 0 ? sections : [];
+  // Directory options a Default Directory dropdown can point at: core modules + custom folders.
+  const directoryOptions = [...CORE_MODULES.map(m => ({ id: m.id, title: m.label })), ...folders.map(f => ({ id: f.id, title: f.title }))];
+  const activeQuiz = quizzes.find(q => q.id === activeQuizId) || null;
+  const activeQuizRecords = quizRecords.filter(r => r.quizId === activeQuizId);
+  const recordSections = Array.from(new Set(activeQuizRecords.map(r => (r.section || '').trim()).filter(Boolean))).sort();
+  const filteredQuizRecords = recordSectionFilter === 'all' ? activeQuizRecords : activeQuizRecords.filter(r => (r.section || '').trim() === recordSectionFilter);
 
   return (
     <div className="min-h-screen flex font-sans" style={{ backgroundColor: C.bg, color: C.text }}>
       <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
 
-      {/* GLOBAL TOAST */}
+      {/* GLOBAL TOAST — only ever set when settings.notifications is true (see triggerToast) */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-[400] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold ${motionBounce}`} style={{ backgroundColor: C.accent, color: C.bg }}>
           <CheckCircle className="w-4 h-4" />
@@ -899,10 +1143,21 @@ export default function App() {
       )}
 
       {/* SIDEBAR */}
-      <aside className={`fixed md:static inset-y-0 left-0 w-64 flex flex-col z-40 p-5 ${reducedMotion ? '' : 'transition-transform'} ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`} style={{ backgroundColor: C.panel, borderRight: `1px solid ${C.border}` }}>
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-xl" style={{ backgroundColor: C.accentDim }}><ShieldCheck className="w-5 h-5" style={{ color: C.accent }} /></div>
-          <h1 className="font-extrabold text-sm">NESHS PORTAL</h1>
+      <aside className={`fixed md:static inset-y-0 left-0 w-64 flex flex-col z-40 p-5 ${reducedMotion ? '' : 'transition-transform'} ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${sidebarCollapsed ? 'md:hidden' : ''}`} style={{ backgroundColor: C.panel, borderRight: `1px solid ${C.border}` }}>
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl shrink-0" style={{ backgroundColor: C.accentDim }}><ShieldCheck className="w-5 h-5" style={{ color: C.accent }} /></div>
+            <h1 className="font-extrabold text-sm truncate">NESHS PORTAL</h1>
+          </div>
+          {/* Close button — collapses the sidebar on desktop; on mobile it hides the slide-in nav. */}
+          <button
+            onClick={() => { setSidebarCollapsed(true); setMobileNavOpen(false); }}
+            className="p-1.5 rounded-lg shrink-0"
+            style={{ backgroundColor: C.panelAlt, color: C.textDim }}
+            title="Close sidebar"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {canEditEverything && (
@@ -913,29 +1168,35 @@ export default function App() {
 
         <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
           <p className="text-[10px] font-bold uppercase mb-2 pl-1" style={{ color: C.textDim }}>Core Modules</p>
-          {CORE_MODULES.map(m => (
-            <button key={m.id} onClick={() => { setActiveTab(m.id); setMobileNavOpen(false); setQuizMode('list'); setExpandedAchieverId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold" style={activeTab === m.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
-              <m.icon className="w-4 h-4" /> {m.label}
-            </button>
-          ))}
-
-          {folders.length > 0 && (
-            <>
-              <p className="text-[10px] font-bold uppercase mt-4 mb-2 pl-1" style={{ color: C.textDim }}>Folders</p>
-              {folders.map(f => (
-                <div key={f.id} className="flex items-center gap-1">
-                  <button onClick={() => { setActiveTab(f.id); setMobileNavOpen(false); }} className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold" style={activeTab === f.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
-                    <Folder className="w-4 h-4 shrink-0" /> <span className="truncate">{f.title}</span>
-                  </button>
-                  {canEditEverything && (
-                    <button onClick={() => deleteFolder(f.id)} className="p-2 rounded-lg shrink-0" style={{ color: C.danger }} title="Delete folder">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </>
-          )}
+          {CORE_MODULES.map(m => {
+            // Folders belonging to this module are nested directly beneath its
+            // button — except Project History, whose groups are intentionally
+            // NOT listed here. Those live only on the Project History page itself.
+            const moduleFolders = m.id === 'projectHistory' ? [] : folders.filter(f => f.module === m.id);
+            return (
+              <div key={m.id}>
+                <button onClick={() => { setActiveTab(m.id); setMobileNavOpen(false); setQuizMode('list'); setExpandedAchieverId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold" style={activeTab === m.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
+                  <m.icon className="w-4 h-4" /> {m.label}
+                </button>
+                {moduleFolders.length > 0 && (
+                  <div className="ml-4 mt-1 space-y-1 pl-2" style={{ borderLeft: `1px solid ${C.border}` }}>
+                    {moduleFolders.map(f => (
+                      <div key={f.id} className="flex items-center gap-1">
+                        <button onClick={() => { setActiveTab(f.id); setMobileNavOpen(false); }} className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-semibold" style={activeTab === f.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
+                          <Folder className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{f.title}</span>
+                        </button>
+                        {canEditEverything && (
+                          <button onClick={() => deleteFolder(f.id)} className="p-1.5 rounded-lg shrink-0" style={{ color: C.danger }} title="Delete folder">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           <p className="text-[10px] font-bold uppercase mt-4 mb-2 pl-1" style={{ color: C.textDim }}>System</p>
           <button onClick={() => setActiveTab('author')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold" style={activeTab === 'author' ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
@@ -954,9 +1215,25 @@ export default function App() {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-4" style={{ backgroundColor: 'rgba(3,31,35,0.9)', borderBottom: `1px solid ${C.border}`, backdropFilter: 'blur(8px)' }}>
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 px-6 py-4" style={{ backgroundColor: 'rgba(3,31,35,0.9)', borderBottom: `1px solid ${C.border}`, backdropFilter: 'blur(8px)' }}>
+          <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => setMobileNavOpen(!mobileNavOpen)} className="md:hidden" style={{ color: C.textDim }}><Menu className="w-5 h-5" /></button>
+            {/* Reopen button — only shown once the sidebar has been closed on desktop. */}
+            {sidebarCollapsed && (
+              <button onClick={() => setSidebarCollapsed(false)} className="hidden md:flex p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title="Open sidebar">
+                <Menu className="w-4 h-4" />
+              </button>
+            )}
+            {/* Online button — top-left, shows a live count and roster of everyone currently signed in. */}
+            <div className="relative">
+              <button onClick={() => setOnlinePanelOpen(true)} className="p-2 rounded-lg flex items-center gap-2 text-xs font-bold" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }}>
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: C.accent }} />
+                  <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: C.accent }} />
+                </span>
+                Online <span style={{ color: C.text }}>{visibleOnlineUsers.length}</span>
+              </button>
+            </div>
             {canEditEverything && (
               <button onClick={() => setSectionPanelOpen(true)} className="p-2 rounded-lg flex items-center gap-2 text-xs font-bold" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }}>
                 <Folder className="w-4 h-4" /> Sections
@@ -964,7 +1241,33 @@ export default function App() {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Top-middle portal name — renamable by the Creator and Editors only. */}
+          <div className="flex-1 min-w-0 flex items-center justify-center">
+            {portalTitleEditing && canEditEverything ? (
+              <div className="flex items-center gap-2 w-full max-w-xs">
+                <Field
+                  autoFocus
+                  value={portalTitleDraft}
+                  onChange={e => setPortalTitleDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') savePortalTitle(); if (e.key === 'Escape') setPortalTitleEditing(false); }}
+                  className="text-center text-xs font-bold py-2"
+                />
+                <button onClick={savePortalTitle} className="p-1.5 rounded-lg shrink-0" style={{ backgroundColor: C.accent, color: C.bg }} title="Save"><CheckCircle className="w-4 h-4" /></button>
+                <button onClick={() => setPortalTitleEditing(false)} className="p-1.5 rounded-lg shrink-0" style={{ backgroundColor: C.panelAlt, color: C.textDim }} title="Cancel"><X className="w-4 h-4" /></button>
+              </div>
+            ) : (
+              <button
+                onClick={() => canEditEverything && startEditPortalTitle()}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg truncate ${canEditEverything ? '' : 'cursor-default'}`}
+                title={canEditEverything ? 'Tap to rename' : undefined}
+              >
+                <span className="text-sm font-extrabold tracking-tight truncate" style={{ color: C.text }}>{portalTitle}</span>
+                {canEditEverything && <Edit className="w-3 h-3 shrink-0" style={{ color: C.textDim }} />}
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
             <div className="relative">
               <button onClick={() => { setNotifOpen(!notifOpen); setNotifUnread(0); }} className="p-2 rounded-lg relative" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }}>
                 <Bell className="w-4 h-4" />
@@ -987,8 +1290,13 @@ export default function App() {
               )}
             </div>
 
+            {/* Top-right profile widget: name, section (students only), and role — hidden
+                behind the Profile Visibility privacy toggle when the user opts out. */}
             <div className="text-right hidden sm:block">
-              <p className="text-xs font-bold">{currentUser.name}</p>
+              <p className="text-xs font-bold flex items-center justify-end gap-1.5">
+                {currentUser.name}
+                {!settings.profileVisibility && <EyeOff className="w-3 h-3" style={{ color: C.textDim }} title="Your active status is hidden from other students" />}
+              </p>
               <p className="text-[10px] uppercase" style={{ color: C.accent }}>
                 {currentUser.role}{currentUserSection ? ` \u00b7 ${currentUserSection.title}` : ''}
               </p>
@@ -1094,39 +1402,111 @@ export default function App() {
           {/* PROJECT HISTORY */}
           {activeModule === 'projectHistory' && activeTab !== 'author' && (
             <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-extrabold">Project History</h2>
-                {canEditEverything && <Btn onClick={uploadProjectFile} reducedMotion={reducedMotion}><Upload className="w-4 h-4" /> Upload File</Btn>}
-              </div>
-              {projectFiles.filter(f => f.folderId === activeFolderId).length === 0 && (
-                <Card className="p-12 text-center"><FileText className="w-10 h-10 mx-auto mb-3" style={{ color: C.textDim }} /><p className="text-sm" style={{ color: C.textDim }}>No files uploaded yet.</p></Card>
-              )}
-              <div className="space-y-2">
-                {projectFiles.filter(f => f.folderId === activeFolderId).map(f => (
-                  <Card key={f.id} className="p-4 flex items-center justify-between gap-3">
-                    <button onClick={() => setViewerFile(f)} className="flex items-center gap-3 min-w-0 text-left flex-1">
-                      <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
-                        {f.kind === 'Image' ? <img src={f.url} alt={f.name} className="w-full h-full object-cover" /> : (f.kind === 'Video' || f.kind === 'Audio') ? <Play className="w-4 h-4" style={{ color: C.accent }} /> : <FileText className="w-4 h-4" style={{ color: C.accent }} />}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate">{f.name}</p>
-                        <p className="text-[10px]" style={{ color: C.textDim }}>{f.kind} &middot; {f.authorized ? 'Authorized for download' : 'Download pending authorization'}</p>
-                      </div>
+              <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+                <div className="min-w-0">
+                  {activeFolder ? (
+                    <button onClick={() => setActiveTab('projectHistory')} className="flex items-center gap-1.5 text-[10px] font-bold uppercase mb-1" style={{ color: C.accent }}>
+                      <ChevronLeft className="w-3.5 h-3.5" /> All Groups
                     </button>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {canEditEverything && (
-                        <button onClick={() => toggleFileAuthorization(f.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: f.authorized ? C.accent : C.textDim }} title={f.authorized ? 'Revoke download access' : 'Authorize download'}>
-                          {f.authorized ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                        </button>
-                      )}
-                      <button onClick={() => downloadFile(f)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: canDownloadFile(f) ? C.accent : C.textDim }} title={canDownloadFile(f) ? 'Download' : 'Awaiting authorization'}>
-                        <Download className="w-4 h-4" />
-                      </button>
-                      {canEditEverything && <button onClick={() => deleteProjectFile(f.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.danger }}><Trash2 className="w-4 h-4" /></button>}
-                    </div>
-                  </Card>
-                ))}
+                  ) : (
+                    <p className="text-[10px] font-bold uppercase mb-1" style={{ color: C.textDim }}>Project History</p>
+                  )}
+                  <h2 className="text-xl font-extrabold truncate">{activeFolder ? activeFolder.title : 'Upload Groups'}</h2>
+                  {activeFolder?.uploadDate && (
+                    <p className="text-[10px] font-semibold uppercase mt-0.5" style={{ color: C.textDim }}>Folder created {activeFolder.uploadDate}</p>
+                  )}
+                </div>
+                {canEditEverything && (
+                  <div className="flex gap-2 shrink-0">
+                    <Btn variant="ghost" onClick={openProjectHistoryFolderCreate} reducedMotion={reducedMotion}><FolderPlus className="w-4 h-4" /> New Group</Btn>
+                    {activeFolder && <Btn onClick={uploadProjectFile} reducedMotion={reducedMotion}><Upload className="w-4 h-4" /> Upload File</Btn>}
+                  </div>
+                )}
               </div>
+
+              {!activeFolder ? (
+                // The group list lives directly on the Project History page itself —
+                // every group created here stays inside this page, it's never a
+                // separate destination outside Project History.
+                projectHistoryFolders.length === 0 ? (
+                  <Card className="p-12 text-center mt-4">
+                    <Folder className="w-10 h-10 mx-auto mb-3" style={{ color: C.textDim }} />
+                    <p className="text-sm mb-1" style={{ color: C.textDim }}>No upload groups yet.</p>
+                    <p className="text-[11px]" style={{ color: C.textDim }}>Create a group to start uploading files into Project History.</p>
+                    {canEditEverything && (
+                      <Btn className="mt-4" onClick={openProjectHistoryFolderCreate} reducedMotion={reducedMotion}>
+                        <FolderPlus className="w-4 h-4" /> Create Folder
+                      </Btn>
+                    )}
+                  </Card>
+                ) : (
+                  <div className="grid gap-2 mt-4">
+                    {projectHistoryFolders.map(f => {
+                      const fileCount = projectFiles.filter(pf => pf.folderId === f.id).length;
+                      return (
+                        <Card key={f.id} className="p-4 flex items-center justify-between gap-3">
+                          <button onClick={() => setActiveTab(f.id)} className="flex items-center gap-3 min-w-0 text-left flex-1">
+                            <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: C.accentDim }}>
+                              <Folder className="w-5 h-5" style={{ color: C.accent }} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">{f.title}</p>
+                              <p className="text-[10px]" style={{ color: C.textDim }}>{fileCount} file{fileCount === 1 ? '' : 's'}{f.uploadDate ? ` \u00b7 Created ${f.uploadDate}` : ''}</p>
+                            </div>
+                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button onClick={() => setActiveTab(f.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.accent }} title="Open group">
+                              <ArrowRight className="w-4 h-4" />
+                            </button>
+                            {canEditEverything && (
+                              <button onClick={() => deleteFolder(f.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.danger }} title="Delete group">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                <div className="mt-4">
+                  {projectFiles.filter(f => f.folderId === activeFolderId).length === 0 && (
+                    <Card className="p-12 text-center"><FileText className="w-10 h-10 mx-auto mb-3" style={{ color: C.textDim }} /><p className="text-sm" style={{ color: C.textDim }}>No files uploaded yet.</p></Card>
+                  )}
+                  <div className="space-y-2">
+                    {projectFiles.filter(f => f.folderId === activeFolderId).map(f => (
+                      <Card key={f.id} className="p-4 flex items-center justify-between gap-3">
+                        <button onClick={() => setViewerFile(f)} className="flex items-center gap-3 min-w-0 text-left flex-1">
+                          <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
+                            {f.kind === 'Image' ? <img src={f.url} alt={f.title || f.name} className="w-full h-full object-cover" /> : (f.kind === 'Video' || f.kind === 'Audio') ? <Play className="w-4 h-4" style={{ color: C.accent }} /> : <FileText className="w-4 h-4" style={{ color: C.accent }} />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{f.title || f.name}</p>
+                            <p className="text-[10px]" style={{ color: C.textDim }}>{f.kind} &middot; {f.authorized ? 'Authorized for download' : 'Download pending authorization'}</p>
+                          </div>
+                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {canEditEverything && (
+                            <button onClick={() => openRenameModal(f)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.textDim }} title="Rename or replace file">
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
+                          {canEditEverything && (
+                            <button onClick={() => toggleFileAuthorization(f.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: f.authorized ? C.accent : C.textDim }} title={f.authorized ? 'Revoke download access' : 'Authorize download'}>
+                              {f.authorized ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                            </button>
+                          )}
+                          <button onClick={() => downloadFile(f)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: canDownloadFile(f) ? C.accent : C.textDim }} title={canDownloadFile(f) ? 'Download' : 'Awaiting authorization'}>
+                            <Download className="w-4 h-4" />
+                          </button>
+                          {canEditEverything && <button onClick={() => deleteProjectFile(f.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.danger }}><Trash2 className="w-4 h-4" /></button>}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1141,9 +1521,19 @@ export default function App() {
               <div className="grid gap-4">
                 {achievers.filter(a => a.folderId === activeFolderId).map(a => {
                   const expanded = expandedAchieverId === a.id;
+                  const achievements = a.achievements || [];
                   return (
                     <Card key={a.id} className="overflow-hidden" style={{ borderColor: 'rgba(244,208,111,0.3)' }}>
-                      <div className="p-5 relative cursor-pointer flex items-center gap-4" onClick={(e) => { if (!e.target.closest('button')) setExpandedAchieverId(expanded ? null : a.id); }}>
+                      {/* Header row toggles expand/collapse. Buttons inside stop propagation
+                          explicitly so their own click handlers fire without also toggling
+                          the card — this is the piece that was broken before. */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setExpandedAchieverId(expanded ? null : a.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedAchieverId(expanded ? null : a.id); } }}
+                        className="p-5 relative cursor-pointer flex items-center gap-4"
+                      >
                         <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden shrink-0" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.gold}` }}>
                           {a.photo ? <img src={a.photo} alt={a.name} className="w-full h-full object-cover" /> : <ImageIcon className="w-5 h-5" style={{ color: C.textDim }} />}
                         </div>
@@ -1151,47 +1541,73 @@ export default function App() {
                           <h3 className="text-base font-extrabold truncate">{a.name}</h3>
                           <p className="text-[10px] font-bold uppercase" style={{ color: C.gold }}>{a.semester}</p>
                         </div>
-                        <Award className="w-5 h-5 shrink-0" style={{ color: C.gold, opacity: 0.6 }} />
+                        <ChevronDown className={`w-4 h-4 shrink-0 ${reducedMotion ? '' : 'transition-transform duration-300'}`} style={{ color: C.gold, opacity: 0.7, transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                         {canEditEverything && (
-                          <button onClick={() => deleteAchiever(a.id)} className="p-1.5 rounded shrink-0" style={{ backgroundColor: C.panelAlt, color: C.danger }}><Trash2 className="w-4 h-4" /></button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteAchiever(a.id); }}
+                            className="p-1.5 rounded shrink-0"
+                            style={{ backgroundColor: C.panelAlt, color: C.danger }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
 
                       {expanded && (
                         <div className="px-5 pb-5 pt-2" style={{ borderTop: `1px solid ${C.border}` }}>
                           <div className="flex flex-col items-center text-center mt-4">
-                            <div className="w-24 h-24 rounded-full flex items-center justify-center mb-3 cursor-pointer overflow-hidden" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.gold}` }} onClick={() => canEditEverything && uploadAchieverPhoto(a.id)}>
+                            <div
+                              className="w-24 h-24 rounded-full flex items-center justify-center mb-3 cursor-pointer overflow-hidden"
+                              style={{ backgroundColor: C.accentDim, border: `2px solid ${C.gold}` }}
+                              onClick={(e) => { e.stopPropagation(); if (canEditEverything) uploadAchieverPhoto(a.id); }}
+                            >
                               {a.photo ? <img src={a.photo} alt={a.name} className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8" style={{ color: C.textDim }} />}
                             </div>
                             {canEditEverything && <p className="text-[9px] uppercase font-bold mb-3" style={{ color: C.textDim }}>Tap photo to change</p>}
+                            <h4 className="text-lg font-extrabold">{a.name}</h4>
+                            {a.semester && <p className="text-[10px] font-bold uppercase mt-1" style={{ color: C.gold }}>{a.semester}</p>}
                             {a.quote && (
-                              <div className="flex items-start gap-2 max-w-sm mb-4">
+                              <div className="flex items-start gap-2 max-w-sm mt-4 mb-1">
                                 <Quote className="w-4 h-4 shrink-0" style={{ color: C.accent }} />
                                 <p className="text-sm italic" style={{ color: C.textDim }}>{a.quote}</p>
                               </div>
                             )}
                           </div>
 
-                          <div className="mt-2">
+                          <div className="mt-5">
                             <p className="text-[10px] font-bold uppercase mb-2" style={{ color: C.textDim }}>Achievements</p>
                             <div className="space-y-1.5 mb-3">
-                              {(a.achievements || []).length === 0 && <p className="text-xs" style={{ color: C.textDim }}>No achievements listed yet.</p>}
-                              {(a.achievements || []).map(ach => (
+                              {achievements.length === 0 && <p className="text-xs" style={{ color: C.textDim }}>No achievements listed yet.</p>}
+                              {achievements.map(ach => (
                                 <div key={ach.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
                                   <span className="text-xs flex items-center gap-2"><CheckCircle className="w-3.5 h-3.5 shrink-0" style={{ color: C.gold }} /> {ach.text}</span>
-                                  {canEditEverything && <button onClick={() => removeAchievement(a.id, ach.id)} style={{ color: C.danger }}><X className="w-3.5 h-3.5" /></button>}
+                                  {canEditEverything && (
+                                    <button onClick={(e) => { e.stopPropagation(); removeAchievement(a.id, ach.id); }} style={{ color: C.danger }}>
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
                               ))}
                             </div>
+                            {/* Add-achievement control — the piece explicitly requested. */}
                             {canEditEverything && (
-                              <div className="flex gap-2">
-                                <Field placeholder="Add an achievement..." value={achievementDraft[a.id] || ''} onChange={e => setAchievementDraft(prev => ({ ...prev, [a.id]: e.target.value }))} />
+                              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                <Field
+                                  placeholder="Add an achievement..."
+                                  value={achievementDraft[a.id] || ''}
+                                  onChange={e => setAchievementDraft(prev => ({ ...prev, [a.id]: e.target.value }))}
+                                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAchievement(a.id); } }}
+                                />
                                 <Btn onClick={() => addAchievement(a.id)} reducedMotion={reducedMotion}><Plus className="w-4 h-4" /> Add</Btn>
                               </div>
                             )}
                           </div>
 
-                          {canEditEverything && <Btn variant="ghost" className="mt-4" onClick={() => openAchieverModal(a)} reducedMotion={reducedMotion}><Edit className="w-3 h-3" /> Edit Details</Btn>}
+                          {canEditEverything && (
+                            <Btn variant="ghost" className="mt-4" onClick={(e) => { e.stopPropagation(); openAchieverModal(a); }} reducedMotion={reducedMotion}>
+                              <Edit className="w-3 h-3" /> Edit Details
+                            </Btn>
+                          )}
                         </div>
                       )}
                     </Card>
@@ -1216,10 +1632,13 @@ export default function App() {
                       <Card key={q.id} className="p-5 flex justify-between items-center flex-wrap gap-2">
                         <div><h3 className="text-sm font-bold">{q.title}</h3><p className="text-[10px]" style={{ color: C.textDim }}>{q.items.length} Questions</p></div>
                         <div className="flex gap-2 flex-wrap">
-                          <Btn onClick={() => { setActiveQuizId(q.id); setQuizMode('take'); setTakeError(''); }} reducedMotion={reducedMotion}>Take Quiz</Btn>
+                          {/* Take Quiz — routes into the gated quiz-taking flow. */}
+                          <Btn onClick={() => { setActiveQuizId(q.id); setQuizMode('take'); setTakeError(''); setTakeState({ name: '', grade: '', section: '', gate: '', started: false, answers: {} }); }} reducedMotion={reducedMotion}>
+                            <Play className="w-3.5 h-3.5" /> Take Quiz
+                          </Btn>
                           {!isStudent && (
                             <>
-                              <Btn variant="ghost" onClick={() => { setActiveQuizId(q.id); setQuizMode('records'); }} reducedMotion={reducedMotion}>Records</Btn>
+                              <Btn variant="ghost" onClick={() => { setActiveQuizId(q.id); setQuizMode('records'); setRecordSectionFilter('all'); }} reducedMotion={reducedMotion}>Records</Btn>
                               {canCreateQuizzes && <button onClick={() => { setBuilder({ step: 3, ...q }); setQuizMode('builder'); }} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, color: C.textDim }}><Edit className="w-4 h-4" /></button>}
                               {canCreateQuizzes && <button onClick={() => deleteQuiz(q.id)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, color: C.danger }}><Trash2 className="w-4 h-4" /></button>}
                             </>
@@ -1291,14 +1710,13 @@ export default function App() {
                 </Card>
               )}
 
-              {quizMode === 'take' && (() => {
-                const quiz = quizzes.find(q => q.id === activeQuizId);
-                return (
+              {quizMode === 'take' && (
+                activeQuiz ? (
                   <Card className="p-8 max-w-xl mx-auto">
                     {!takeState.started ? (
                       <div className="space-y-4 text-center">
                         <Lock className="w-10 h-10 mx-auto" style={{ color: C.textDim }} />
-                        <h3 className="text-lg font-extrabold">{quiz.title}</h3>
+                        <h3 className="text-lg font-extrabold">{activeQuiz.title}</h3>
                         {takeError && <p className="text-xs font-semibold" style={{ color: C.danger }}>{takeError}</p>}
                         <Field placeholder="Full Name" value={takeState.name} onChange={e => setTakeState({ ...takeState, name: e.target.value })} />
                         <Field placeholder="Grade Level" value={takeState.grade} onChange={e => setTakeState({ ...takeState, grade: e.target.value })} />
@@ -1308,16 +1726,16 @@ export default function App() {
                           <Btn variant="ghost" className="flex-1" onClick={() => setQuizMode('list')} reducedMotion={reducedMotion}>Cancel</Btn>
                           <Btn className="flex-1" onClick={() => {
                             if (!takeState.name.trim() || !takeState.grade.trim() || !takeState.section.trim()) { setTakeError('Please fill in your name, grade level, and section.'); return; }
-                            if (takeState.gate !== quiz.password) { setTakeError('Incorrect quiz access password.'); return; }
+                            if (takeState.gate !== activeQuiz.password) { setTakeError('Incorrect quiz access password.'); return; }
                             setTakeError('');
-                            setTakeState({ ...takeState, started: true });
+                            setTakeState(prev => ({ ...prev, started: true }));
                           }} reducedMotion={reducedMotion}>Start Quiz</Btn>
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-5">
-                        <h3 className="text-lg font-extrabold">{quiz.title}</h3>
-                        {quiz.items.map((item, idx) => (
+                        <h3 className="text-lg font-extrabold">{activeQuiz.title}</h3>
+                        {activeQuiz.items.map((item, idx) => (
                           <Card key={idx} className="p-4">
                             <p className="text-sm font-semibold mb-3">{idx + 1}. {item.qText}</p>
                             {item.type === 'Multiple Choice' ? (
@@ -1344,20 +1762,39 @@ export default function App() {
                       </div>
                     )}
                   </Card>
-                );
-              })()}
+                ) : (
+                  <Card className="p-12 text-center">
+                    <FileSpreadsheet className="w-10 h-10 mx-auto mb-3" style={{ color: C.textDim }} />
+                    <p className="text-sm mb-4" style={{ color: C.textDim }}>This quiz is no longer available.</p>
+                    <Btn onClick={() => setQuizMode('list')} reducedMotion={reducedMotion}>Back to Quizzes</Btn>
+                  </Card>
+                )
+              )}
 
               {quizMode === 'records' && (
                 <Card className="p-6">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-extrabold">Record Sheet: {quizzes.find(q => q.id === activeQuizId)?.title}</h3>
-                    <button onClick={() => setQuizMode('list')} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+                  <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+                    <h3 className="text-lg font-extrabold">Record Sheet: {activeQuiz?.title || 'Quiz'}</h3>
+                    <div className="flex items-center gap-2">
+                      {recordSections.length > 0 && (
+                        <Select value={recordSectionFilter} onChange={e => setRecordSectionFilter(e.target.value)} className="!w-auto !py-2 text-xs">
+                          <option value="all">All Sections</option>
+                          {recordSections.map(s => <option key={s} value={s}>{s}</option>)}
+                        </Select>
+                      )}
+                      {activeQuiz && filteredQuizRecords.length > 0 && (
+                        <Btn variant="ghost" onClick={() => exportRecordsCsv(activeQuiz, filteredQuizRecords)} reducedMotion={reducedMotion}>
+                          <Download className="w-3.5 h-3.5" /> Export CSV
+                        </Btn>
+                      )}
+                      <button onClick={() => setQuizMode('list')} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead style={{ color: C.textDim }}><tr><th className="p-3">Student</th><th className="p-3">Grade</th><th className="p-3">Section</th><th className="p-3">Score</th><th className="p-3">Time</th></tr></thead>
                       <tbody>
-                        {quizRecords.filter(r => r.quizId === activeQuizId).map(r => (
+                        {filteredQuizRecords.map(r => (
                           <tr key={r.id} style={{ borderTop: `1px solid ${C.border}` }}>
                             <td className="p-3 font-bold">{r.studentName}</td>
                             <td className="p-3">{r.grade}</td>
@@ -1368,7 +1805,7 @@ export default function App() {
                         ))}
                       </tbody>
                     </table>
-                    {quizRecords.filter(r => r.quizId === activeQuizId).length === 0 && <p className="text-center py-8 text-sm" style={{ color: C.textDim }}>No submissions yet.</p>}
+                    {filteredQuizRecords.length === 0 && <p className="text-center py-8 text-sm" style={{ color: C.textDim }}>No submissions yet{recordSectionFilter !== 'all' ? ` for ${recordSectionFilter}` : ''}.</p>}
                   </div>
                 </Card>
               )}
@@ -1376,6 +1813,307 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* ANNOUNCEMENT MODAL */}
+      {annModal.open && annModal.data && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+          <Card className="w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-extrabold">{annModal.data.id ? 'Edit Article' : 'Create Article/News'}</h3>
+              <button onClick={() => setAnnModal({ open: false, step: 1, data: null })} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+            </div>
+
+            {annModal.step === 1 && (
+              <div className="space-y-4">
+                <Field placeholder="Article Title" value={annModal.data.title} onChange={e => setAnnModal(prev => ({ ...prev, data: { ...prev.data, title: e.target.value } }))} />
+                <Btn className="w-full py-3" onClick={submitAnnouncementTitle} disabled={!annModal.data.title.trim()} reducedMotion={reducedMotion}>Next</Btn>
+              </div>
+            )}
+
+            {annModal.step === 2 && (
+              <div className="space-y-4">
+                <textarea placeholder="Article details..." value={annModal.data.details} onChange={e => setAnnModal(prev => ({ ...prev, data: { ...prev.data, details: e.target.value } }))} className="w-full h-32 p-3 rounded-xl text-sm outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }} />
+
+                <div>
+                  <button onClick={uploadAnnouncementMedia} className="w-full flex items-center justify-center gap-2 py-4 rounded-xl text-xs font-bold" style={{ backgroundColor: C.accentDim, border: `1px dashed ${C.accent}`, color: C.accent }}>
+                    <Upload className="w-4 h-4" /> Attach Photos / Videos
+                  </button>
+                  {annModal.data.media.length > 0 && (
+                    <div className="grid grid-cols-4 gap-2 mt-3">
+                      {annModal.data.media.map(m => (
+                        <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+                          {m.type === 'video' ? <video src={m.url} className="w-full h-full object-cover" muted /> : <img src={m.url} alt={m.name} className="w-full h-full object-cover" />}
+                          <button onClick={() => removeAnnouncementMedia(m.id)} className="absolute top-1 right-1 p-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,10,12,0.7)', color: C.danger }}><X className="w-3 h-3" /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Btn className="w-full py-3" onClick={saveAnnouncement} reducedMotion={reducedMotion}>{annModal.data.id ? 'Save Changes' : 'Publish Article'}</Btn>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* ACHIEVER MODAL */}
+      {achieverModal.open && achieverModal.data && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+          <Card className="w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-extrabold">{achieverModal.data.id ? 'Edit Achiever' : 'Add Achiever'}</h3>
+              <button onClick={() => setAchieverModal({ open: false, data: null })} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center cursor-pointer overflow-hidden" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.gold}` }} onClick={uploadAchieverPhotoInModal}>
+                {achieverModal.data.photo ? <img src={achieverModal.data.photo} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-6 h-6" style={{ color: C.textDim }} />}
+              </div>
+              <p className="text-[9px] uppercase font-bold text-center -mt-2" style={{ color: C.textDim }}>Tap to upload photo</p>
+              <Field placeholder="Full Name" value={achieverModal.data.name} onChange={e => setAchieverModal(prev => ({ ...prev, data: { ...prev.data, name: e.target.value } }))} />
+              <Field placeholder="Semester / Term (e.g. SY 2025-2026, 1st Semester)" value={achieverModal.data.semester} onChange={e => setAchieverModal(prev => ({ ...prev, data: { ...prev.data, semester: e.target.value } }))} />
+              <textarea placeholder="Quote" value={achieverModal.data.quote} onChange={e => setAchieverModal(prev => ({ ...prev, data: { ...prev.data, quote: e.target.value } }))} className="w-full h-20 p-3 rounded-xl text-sm outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }} />
+              <Btn className="w-full py-3" onClick={saveAchiever} disabled={!achieverModal.data.name.trim()} reducedMotion={reducedMotion}>Save Achiever</Btn>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ONLINE PANEL — who's currently signed in, with a live count and a close button. */}
+      {onlinePanelOpen && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+          <Card className="w-full max-w-sm max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+              <div>
+                <h3 className="text-lg font-extrabold flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: C.accent }} />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ backgroundColor: C.accent }} />
+                  </span>
+                  Online Now
+                </h3>
+                <p className="text-[10px] mt-1" style={{ color: C.textDim }}>{visibleOnlineUsers.length} device{visibleOnlineUsers.length === 1 ? '' : 's'} currently signed in</p>
+              </div>
+              <button onClick={() => setOnlinePanelOpen(false)} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="overflow-y-auto px-4 py-3 flex-1">
+              {visibleOnlineUsers.length === 0 && (
+                <p className="text-xs text-center py-8" style={{ color: C.textDim }}>No one else is online right now.</p>
+              )}
+              <div className="space-y-1.5">
+                {visibleOnlineUsers.map(u => {
+                  const sec = u.sectionId ? sections.find(s => s.id === u.sectionId) : null;
+                  return (
+                    <div key={u.email} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: C.accent }} />
+                        <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: C.accent }} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold truncate">{u.name}{u.email === currentUser.email ? ' (You)' : ''}</p>
+                        <p className="text-[10px] uppercase" style={{ color: C.accent }}>{u.role}{sec ? ` \u00b7 ${sec.title}` : ''}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-4" style={{ borderTop: `1px solid ${C.border}` }}>
+              <Btn className="w-full py-3" onClick={() => setOnlinePanelOpen(false)} reducedMotion={reducedMotion}>Close</Btn>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* SECTIONS PANEL */}
+      {sectionPanelOpen && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+          <Card className="w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-extrabold">Manage Sections</h3>
+              <button onClick={() => setSectionPanelOpen(false)} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+            </div>
+
+            {!addSectionOpen ? (
+              <button onClick={() => setAddSectionOpen(true)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold mb-4" style={{ backgroundColor: C.accentDim, color: C.accent, border: `1px dashed ${C.accent}` }}>
+                <Plus className="w-4 h-4" /> Add Section
+              </button>
+            ) : (
+              <div className="space-y-3 mb-5 p-4 rounded-xl" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
+                <Field placeholder="Strand (e.g. STEM, ABM, HUMSS)" value={newSection.strand} onChange={e => setNewSection({ ...newSection, strand: e.target.value })} />
+                <Select value={newSection.grade} onChange={e => setNewSection({ ...newSection, grade: e.target.value })}>
+                  <option value="11">Grade 11</option>
+                  <option value="12">Grade 12</option>
+                </Select>
+                <Field placeholder="Section Name (e.g. Newton)" value={newSection.name} onChange={e => setNewSection({ ...newSection, name: e.target.value })} />
+                <div className="flex gap-2">
+                  <Btn variant="ghost" className="flex-1" onClick={() => setAddSectionOpen(false)} reducedMotion={reducedMotion}>Cancel</Btn>
+                  <Btn className="flex-1" onClick={() => { createSection(); setAddSectionOpen(false); }} disabled={!newSection.strand.trim() || !newSection.name.trim()} reducedMotion={reducedMotion}>Create</Btn>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {sections.length === 0 && <p className="text-xs text-center py-6" style={{ color: C.textDim }}>No sections created yet.</p>}
+              {sections.map(s => (
+                <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-xl" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
+                  <span className="text-xs font-semibold truncate">{s.title}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Toggle checked={s.active} onChange={() => toggleSectionActive(s.id)} reducedMotion={reducedMotion} />
+                    <button onClick={() => deleteSection(s.id)} style={{ color: C.danger }}><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ADD FOLDER MODAL */}
+      {addFolderOpen && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+          <Card className="w-full max-w-sm p-6">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-extrabold">{addFolderLockedModule ? 'New Upload Group' : 'Add Folder'}</h3>
+              <button onClick={closeAddFolderModal} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+            </div>
+
+            {folderError && (
+              <div className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ backgroundColor: 'rgba(255,122,122,0.1)', border: '1px solid rgba(255,122,122,0.3)', color: C.danger }}>{folderError}</div>
+            )}
+
+            {addFolderLockedModule ? (
+              // Opened from inside Project History: a single-step prompt for the
+              // group/upload name and date — no "which module" question at all,
+              // since the module is already implied by where this was opened.
+              // Wrapped in a real <form> so Enter submits through createFolder
+              // (with its explicit validation) instead of doing nothing.
+              <form className="space-y-4" onSubmit={e => { e.preventDefault(); createFolder(); }}>
+                <div>
+                  <p className="text-[10px] font-bold uppercase mb-1.5" style={{ color: C.textDim }}>Group / Upload Name</p>
+                  <Field placeholder="e.g. Foundation Day 2026" value={newFolder.title} onChange={e => setNewFolder({ ...newFolder, title: e.target.value })} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase mb-1.5" style={{ color: C.textDim }}>Upload Date</p>
+                  <Field type="date" value={newFolder.uploadDate} onChange={e => setNewFolder({ ...newFolder, uploadDate: e.target.value })} />
+                </div>
+                <Btn type="submit" className="w-full py-3" reducedMotion={reducedMotion}>Create &amp; Continue</Btn>
+              </form>
+            ) : (
+              folderStep === 1 ? (
+                <form className="space-y-4" onSubmit={e => { e.preventDefault(); if (newFolder.title.trim()) setFolderStep(2); else setFolderError('Please enter a folder title.'); }}>
+                  <Field placeholder="Folder Title" value={newFolder.title} onChange={e => setNewFolder({ ...newFolder, title: e.target.value })} />
+                  <Btn type="submit" className="w-full py-3" reducedMotion={reducedMotion}>Next</Btn>
+                </form>
+              ) : (
+                <form className="space-y-4" onSubmit={e => { e.preventDefault(); createFolder(); }}>
+                  <p className="text-xs font-bold" style={{ color: C.textDim }}>Which module does this folder belong to?</p>
+                  <Select value={newFolder.module} onChange={e => setNewFolder({ ...newFolder, module: e.target.value })}>
+                    {CORE_MODULES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </Select>
+                  {/* Project History folders require an upload date — files are uploaded
+                      inside the folder afterward, never directly at creation time. */}
+                  {newFolder.module === 'projectHistory' && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase mb-1.5" style={{ color: C.textDim }}>Upload Date</p>
+                      <Field type="date" value={newFolder.uploadDate} onChange={e => setNewFolder({ ...newFolder, uploadDate: e.target.value })} />
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Btn type="button" variant="ghost" className="flex-1" onClick={() => setFolderStep(1)} reducedMotion={reducedMotion}>Back</Btn>
+                    <Btn type="submit" className="flex-1" reducedMotion={reducedMotion}>Create Folder</Btn>
+                  </div>
+                </form>
+              )
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* SETTINGS PANEL — fully wired, functional preferences (was previously a dead button) */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+          <Card className="w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+              <div className="flex items-center gap-2.5">
+                <Settings className="w-5 h-5" style={{ color: C.accent }} />
+                <h3 className="text-lg font-extrabold">Settings &amp; Privacy</h3>
+              </div>
+              <button onClick={() => setIsSettingsOpen(false)} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-2 flex-1">
+              {/* Category 1: Privacy */}
+              <p className="text-[10px] font-bold uppercase pt-4 pb-1" style={{ color: C.accent }}>Privacy Checkup</p>
+              <SettingsRow
+                icon={settings.profileVisibility ? Eye : EyeOff}
+                label="Profile Visibility"
+                desc="Show or hide your active status from other students."
+                control={<Toggle checked={settings.profileVisibility} onChange={v => handleSettingChange('profileVisibility', v)} reducedMotion={reducedMotion} />}
+              />
+              <SettingsRow
+                icon={FolderCog}
+                label="Default Directory"
+                desc="The section that loads automatically when you sign in."
+                control={
+                  <Select value={settings.defaultDirectory} onChange={e => handleSettingChange('defaultDirectory', e.target.value)} className="!w-40 !py-2 text-xs">
+                    <option value="">Announcements</option>
+                    {directoryOptions.filter(d => d.id !== 'announcements').map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
+                  </Select>
+                }
+              />
+
+              {/* Category 2: Preferences */}
+              <p className="text-[10px] font-bold uppercase pt-5 pb-1" style={{ color: C.accent }}>Preferences</p>
+              <SettingsRow
+                icon={Bell}
+                label="Notifications"
+                desc="Show global system toast notifications."
+                control={<Toggle checked={settings.notifications} onChange={v => handleSettingChange('notifications', v)} reducedMotion={reducedMotion} />}
+              />
+              <SettingsRow
+                icon={Zap}
+                label="Reduced Motion"
+                desc="Turn off animations, bounce effects, and hover transitions."
+                control={<Toggle checked={settings.reducedMotion} onChange={v => handleSettingChange('reducedMotion', v)} reducedMotion={reducedMotion} />}
+              />
+              <SettingsRow
+                icon={Globe}
+                label="Language and Region"
+                desc="Choose the portal's display language."
+                control={
+                  <Select value={settings.language} onChange={e => handleSettingChange('language', e.target.value)} className="!w-36 !py-2 text-xs">
+                    {LANGUAGE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                  </Select>
+                }
+              />
+              <SettingsRow
+                icon={Download}
+                label="Auto-download Attachments"
+                desc="Automatically save files when viewed in Project History."
+                control={<Toggle checked={settings.autoDownload} onChange={v => handleSettingChange('autoDownload', v)} reducedMotion={reducedMotion} />}
+              />
+              <SettingsRow
+                icon={settings.theme === 'light' ? Sun : Moon}
+                label="Theme"
+                desc="Switch between dark and light appearance."
+                control={<Toggle checked={settings.theme === 'light'} onChange={() => toggleTheme()} reducedMotion={reducedMotion} />}
+              />
+
+              <div className="flex items-start gap-2 mt-5 mb-4 p-3 rounded-xl" style={{ backgroundColor: C.accentDim }}>
+                <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.accent }} />
+                <p className="text-[10px]" style={{ color: C.textDim }}>Changes are saved automatically and apply immediately across the portal.</p>
+              </div>
+            </div>
+
+            <div className="p-4" style={{ borderTop: `1px solid ${C.border}` }}>
+              <Btn className="w-full py-3" onClick={() => setIsSettingsOpen(false)} reducedMotion={reducedMotion}>Done</Btn>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* QUIZ RESULT CONFIRMATION */}
       {lastResult && (
@@ -1409,8 +2147,11 @@ export default function App() {
         <div className="fixed inset-0 z-[260] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.94)' }} onClick={() => setViewerFile(null)}>
           <div className="w-full max-w-3xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold truncate pr-4" style={{ color: C.text }}>{viewerFile.name}</p>
+              <p className="text-sm font-bold truncate pr-4" style={{ color: C.text }}>{viewerFile.title || viewerFile.name}</p>
               <div className="flex items-center gap-2 shrink-0">
+                {canEditEverything && (
+                  <button onClick={() => openRenameModal(viewerFile)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, color: C.accent }} title="Rename or replace file"><Edit className="w-4 h-4" /></button>
+                )}
                 <a href={viewerFile.url} target="_blank" rel="noreferrer" className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, color: C.accent }} title="Open in a new tab"><ExternalLink className="w-4 h-4" /></a>
                 {canDownloadFile(viewerFile) && (
                   <button onClick={() => downloadFile(viewerFile)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, color: C.accent }} title="Download"><Download className="w-4 h-4" /></button>
@@ -1419,7 +2160,7 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 rounded-xl overflow-hidden flex items-center justify-center" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
-              {viewerFile.kind === 'Image' && <img src={viewerFile.url} alt={viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
+              {viewerFile.kind === 'Image' && <img src={viewerFile.url} alt={viewerFile.title || viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
               {viewerFile.kind === 'Video' && <video src={viewerFile.url} controls autoPlay className="max-w-full max-h-[75vh]" />}
               {viewerFile.kind === 'Audio' && <audio src={viewerFile.url} controls className="w-full px-8" />}
               {viewerFile.kind === 'PDF' && <embed src={viewerFile.url} type="application/pdf" className="w-full h-[75vh]" />}
@@ -1437,6 +2178,33 @@ export default function App() {
               <p className="text-[10px] text-center mt-2" style={{ color: C.danger }}>Download not yet authorized by the site editor.</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* RENAME / REPLACE FILE MODAL */}
+      {renameModal.open && (
+        <div className="fixed inset-0 z-[290] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+          <Card className="w-full max-w-sm p-6">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-extrabold">Rename File</h3>
+              <button onClick={() => setRenameModal({ open: false, id: null, title: '' })} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase mb-1.5" style={{ color: C.textDim }}>Title</p>
+                <Field placeholder="File title" value={renameModal.title} onChange={e => setRenameModal(prev => ({ ...prev, title: e.target.value }))} />
+              </div>
+              <Btn className="w-full py-3" onClick={saveRename} disabled={!renameModal.title.trim()} reducedMotion={reducedMotion}>Save Title</Btn>
+
+              <div className="pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                <p className="text-[10px] font-bold uppercase mb-2" style={{ color: C.textDim }}>Replace File Content</p>
+                <p className="text-[11px] mb-3" style={{ color: C.textDim }}>Upload a new file to swap in for this entry — the title, folder, and download authorization stay the same.</p>
+                <Btn variant="ghost" className="w-full py-3" onClick={() => replaceProjectFileContent(renameModal.id)} reducedMotion={reducedMotion}>
+                  <Upload className="w-4 h-4" /> Replace File
+                </Btn>
+              </div>
+            </div>
+          </Card>
         </div>
       )}
     </div>
