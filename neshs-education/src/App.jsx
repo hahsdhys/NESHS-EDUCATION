@@ -54,6 +54,27 @@ const EDITOR_GATE_PASSWORD = 'N35H@N45ugbuE45t!';
 const STORAGE_KEY = 'neshs_portal_data_v1';
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
 
+// ------------------------------------------------------------
+// Storage adapter — window.storage only exists inside the Claude artifact
+// sandbox. On a real deployment (e.g. this app hosted on Vercel) that API is
+// undefined, so every call to it throws immediately. Detect that once and
+// transparently fall back to the browser's own localStorage instead, behind
+// the exact same async get/set shape the rest of the app already expects —
+// no other code needs to know which backend is actually in use.
+const hasArtifactStorage = typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+const persistence = hasArtifactStorage
+  ? window.storage
+  : {
+      get: async (key) => {
+        const value = window.localStorage.getItem(key);
+        return value === null ? null : { key, value };
+      },
+      set: async (key, value) => {
+        window.localStorage.setItem(key, value);
+        return { key, value };
+      }
+    };
+
 const CORE_MODULES = [
   { id: 'announcements', icon: Megaphone, label: 'Announcements' },
   { id: 'projectHistory', icon: BookOpen, label: 'Project History' },
@@ -762,7 +783,7 @@ export default function App() {
     (async () => {
       let loadFailed = false;
       try {
-        const res = await window.storage.get(STORAGE_KEY, true);
+        const res = await persistence.get(STORAGE_KEY, true);
         if (res && res.value && !cancelled) {
           const data = JSON.parse(res.value);
           if (Array.isArray(data.accounts)) setAccounts(data.accounts);
@@ -833,7 +854,7 @@ export default function App() {
       // Retry on failure instead of giving up until the next unrelated state
       // change — a save failure right before a reload must not go unrecovered.
       const attemptSave = (retriesLeft) => {
-        window.storage.set(STORAGE_KEY, json, true)
+        persistence.set(STORAGE_KEY, json, true)
           .then(() => setSaveError(''))
           .catch(() => {
             if (retriesLeft > 0) {
