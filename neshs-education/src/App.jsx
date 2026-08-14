@@ -760,6 +760,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      let loadFailed = false;
       try {
         const res = await window.storage.get(STORAGE_KEY, true);
         if (res && res.value && !cancelled) {
@@ -793,9 +794,20 @@ export default function App() {
           }
         }
       } catch (err) {
-        // nothing saved yet on this artifact — that's fine, we start fresh
+        // The stored data existed but failed to parse/load — this must NEVER be
+        // treated as "nothing was saved yet." Falling through silently here would
+        // let the very next debounced save overwrite the corrupted-but-recoverable
+        // stored JSON with a blank slate, permanently destroying every uploaded
+        // file. Block saving entirely until the user acts.
+        loadFailed = true;
       }
-      if (!cancelled) setDataLoaded(true);
+      if (!cancelled) {
+        if (loadFailed) {
+          setSaveError('Your saved files could not be loaded. To protect your data, saving has been paused — please refresh the page before making changes. If this keeps happening, contact the site editor.');
+        } else {
+          setDataLoaded(true);
+        }
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -818,9 +830,20 @@ export default function App() {
         setSaveError('Could not prepare data for saving.');
         return;
       }
-      window.storage.set(STORAGE_KEY, json, true)
-        .then(() => setSaveError(''))
-        .catch(() => setSaveError('Changes could not be saved — storage may be full. Try removing large files or images.'));
+      // Retry on failure instead of giving up until the next unrelated state
+      // change — a save failure right before a reload must not go unrecovered.
+      const attemptSave = (retriesLeft) => {
+        window.storage.set(STORAGE_KEY, json, true)
+          .then(() => setSaveError(''))
+          .catch(() => {
+            if (retriesLeft > 0) {
+              setTimeout(() => attemptSave(retriesLeft - 1), 1500);
+            } else {
+              setSaveError('Changes could not be saved — storage may be full. Try removing large files or images.');
+            }
+          });
+      };
+      attemptSave(2);
     }, 500);
     return () => clearTimeout(handle);
   }, [accounts, sections, folders, announcements, projectFiles, achievers, quizzes, quizRecords, notifications, settings, onlineUsers, portalTitle, authorName, authorTitle, authorBio, authorPhotoUrl, dataLoaded]);
@@ -948,6 +971,21 @@ export default function App() {
   // INITIAL LOAD SCREEN
   // ================================================================
   if (!dataLoaded) {
+    // A load failure sets saveError and deliberately never flips dataLoaded to
+    // true — this screen must say so plainly rather than spin forever, since
+    // silently proceeding into the app would risk the next save overwriting
+    // whatever is actually still sitting in storage.
+    if (saveError) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 font-sans p-6 text-center" style={{ backgroundColor: C.bg, color: C.text }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255,122,122,0.12)' }}>
+            <Lock className="w-6 h-6" style={{ color: C.danger }} />
+          </div>
+          <p className="text-sm font-bold max-w-sm">{saveError}</p>
+          <Btn onClick={() => window.location.reload()} reducedMotion={false}>Refresh Page</Btn>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 font-sans" style={{ backgroundColor: C.bg, color: C.text }}>
           <Loader2 className="w-8 h-8 animate-spin" style={{ color: C.accent }} />
