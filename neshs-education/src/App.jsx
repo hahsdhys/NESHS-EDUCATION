@@ -93,32 +93,57 @@ const supabase = supabaseConfigured ? createClient(SUPABASE_URL, SUPABASE_ANON_K
 //   3. Browser localStorage as the final per-device-only fallback.
 // The rest of the app only ever calls persistence.get/set with this same
 // shape, so it never needs to know which backend is actually active.
+//
+// CRITICAL: a Supabase failure (misconfigured table, blocked RLS policy,
+// network hiccup, wrong project) must NEVER brick the entire app. Every
+// Supabase call below is wrapped so that on failure it transparently falls
+// back to localStorage for that operation instead of throwing — the person
+// can keep uploading, creating folders, and working normally on this device
+// even if cross-device sync is temporarily broken. localStorageFallbackWarned
+// ensures the one-time console warning doesn't spam on every retry.
 const hasArtifactStorage = typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+let localStorageFallbackWarned = false;
+const warnFallbackOnce = (context, err) => {
+  if (localStorageFallbackWarned) return;
+  localStorageFallbackWarned = true;
+  console.warn(`[NESHS Portal] Supabase ${context} failed — falling back to local-only storage for this session.`, err);
+};
+const localStorageAdapter = {
+  get: async (key) => {
+    const value = window.localStorage.getItem(key);
+    return value === null ? null : { key, value };
+  },
+  set: async (key, value) => {
+    window.localStorage.setItem(key, value);
+    return { key, value };
+  }
+};
 const persistence = supabaseConfigured
   ? {
       get: async (key) => {
-        const { data, error } = await supabase.from('portal_data').select('data').eq('id', key).maybeSingle();
-        if (error) throw error;
-        return data ? { key, value: JSON.stringify(data.data) } : null;
+        try {
+          const { data, error } = await supabase.from('portal_data').select('data').eq('id', key).maybeSingle();
+          if (error) throw error;
+          return data ? { key, value: JSON.stringify(data.data) } : null;
+        } catch (err) {
+          warnFallbackOnce('read', err);
+          return localStorageAdapter.get(key);
+        }
       },
       set: async (key, value) => {
-        const { error } = await supabase.from('portal_data').upsert({ id: key, data: JSON.parse(value), updated_at: new Date().toISOString() });
-        if (error) throw error;
-        return { key, value };
+        try {
+          const { error } = await supabase.from('portal_data').upsert({ id: key, data: JSON.parse(value), updated_at: new Date().toISOString() });
+          if (error) throw error;
+          return { key, value };
+        } catch (err) {
+          warnFallbackOnce('write', err);
+          return localStorageAdapter.set(key, value);
+        }
       }
     }
   : hasArtifactStorage
   ? window.storage
-  : {
-      get: async (key) => {
-        const value = window.localStorage.getItem(key);
-        return value === null ? null : { key, value };
-      },
-      set: async (key, value) => {
-        window.localStorage.setItem(key, value);
-        return { key, value };
-      }
-    };
+  : localStorageAdapter;
 
 const CORE_MODULES = [
   { id: 'announcements', icon: Megaphone, label: 'Announcements' },
