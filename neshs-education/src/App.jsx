@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import {
   ShieldCheck, User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
   Megaphone, CheckCircle, Lock, Unlock, Menu, X,
@@ -51,18 +52,55 @@ const DEFAULT_PORTAL_TITLE = 'NESHS SENIOR HIGH SCHOOL';
 const CREATOR_EMAIL = 'marknielpaiton@gmail.com';
 const CREATOR_PASSWORD = 'Paiton16';
 const EDITOR_GATE_PASSWORD = 'N35H@N45ugbuE45t!';
+const TEACHER_SIGNUP_GATE_PASSWORD = 'Sch00lN3t#9876';
 const STORAGE_KEY = 'neshs_portal_data_v1';
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
 
 // ------------------------------------------------------------
-// Storage adapter — window.storage only exists inside the Claude artifact
-// sandbox. On a real deployment (e.g. this app hosted on Vercel) that API is
-// undefined, so every call to it throws immediately. Detect that once and
-// transparently fall back to the browser's own localStorage instead, behind
-// the exact same async get/set shape the rest of the app already expects —
-// no other code needs to know which backend is actually in use.
+// Supabase — the real shared backend. Configure these two values (from your
+// Supabase project's Settings → API page) so every device reads and writes
+// the same data instead of each browser having its own isolated copy.
+//
+// Required one-time setup in the Supabase SQL editor:
+//   create table portal_data (
+//     id text primary key,
+//     data jsonb not null,
+//     updated_at timestamptz not null default now()
+//   );
+//   alter table portal_data enable row level security;
+//   create policy "public read/write" on portal_data for all using (true) with check (true);
+//   alter publication supabase_realtime add table portal_data;
+//
+// Until these are filled in, the app automatically falls back to this
+// browser's own localStorage (the previous per-device behavior) so it never
+// breaks — it just won't be shared across devices until configured.
+const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const supabaseConfigured = SUPABASE_URL.startsWith('http') && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
+const supabase = supabaseConfigured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// ------------------------------------------------------------
+// Storage adapter — three tiers:
+//   1. Supabase (real cross-device sync) when configured above.
+//   2. window.storage inside the Claude artifact sandbox.
+//   3. Browser localStorage as the final per-device-only fallback.
+// The rest of the app only ever calls persistence.get/set with this same
+// shape, so it never needs to know which backend is actually active.
 const hasArtifactStorage = typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
-const persistence = hasArtifactStorage
+const persistence = supabaseConfigured
+  ? {
+      get: async (key) => {
+        const { data, error } = await supabase.from('portal_data').select('data').eq('id', key).maybeSingle();
+        if (error) throw error;
+        return data ? { key, value: JSON.stringify(data.data) } : null;
+      },
+      set: async (key, value) => {
+        const { error } = await supabase.from('portal_data').upsert({ id: key, data: JSON.parse(value), updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return { key, value };
+      }
+    }
+  : hasArtifactStorage
   ? window.storage
   : {
       get: async (key) => {
@@ -264,10 +302,16 @@ export default function App() {
 
   const handleSettingChange = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    // Keep the online-presence list honest in real time: toggling Profile
-    // Visibility off/on immediately hides/shows this account in the Online panel.
+    // Keep the online-presence entry honest in real time: toggling Profile
+    // Visibility off/on immediately hides/shows this account in the Online
+    // panel, by re-tracking on the live presence channel (or, without
+    // Supabase configured, updating the local-only fallback list directly).
     if (key === 'profileVisibility' && currentUser) {
-      setOnlineUsers(prev => prev.map(u => u.email === currentUser.email ? { ...u, visible: value } : u));
+      if (supabaseConfigured && presenceChannelRef.current) {
+        presenceChannelRef.current.track({ email: currentUser.email, name: currentUser.name, role: currentUser.role, sectionId: currentUser.sectionId || null, visible: value });
+      } else {
+        setOnlineUsers(prev => prev.map(u => u.email === currentUser.email ? { ...u, visible: value } : u));
+      }
     }
     triggerToast(`Setting updated: ${key.replace(/([A-Z])/g, ' $1').trim()}`);
   };
@@ -369,6 +413,9 @@ export default function App() {
       const url = await fileToDataURL(files[0]);
       setAuthorPhotoUrl(url);
       logAction('updated author photo', files[0].name || 'photo');
+    } else if (context.type === 'authorModalPhoto') {
+      const url = await fileToDataURL(files[0]);
+      setAuthorModal(prev => ({ ...prev, data: { ...prev.data, photo: url } }));
     } else if (context.type === 'idUpload') {
       const f = files[0];
       const url = await fileToDataURL(f);
@@ -526,11 +573,16 @@ export default function App() {
   };
 
   // ------------------------------------------------------------
-  // online presence — accounts currently signed in, tracked in shared storage
-  // ------------------------------------------------------------
-  const [onlineUsers, setOnlineUsers] = useState([]); // [{email, name, role, sectionId, visible}]
+  // online presence — who is genuinely using the site right now, across every
+  // device/browser. Backed by Supabase Presence (a purpose-built realtime
+  // channel) when configured, since only a real presence channel can detect
+  // someone closing their tab/losing connection — a value stored in the
+  // shared data blob has no way to know that on its own and would only ever
+  // clear via an explicit logout.
+  const [onlineUsers, setOnlineUsers] = useState([]); // [{email, name, role, sectionId, visible}] — one entry per online account, deduped across devices
   const [onlinePanelOpen, setOnlinePanelOpen] = useState(false);
   const visibleOnlineUsers = onlineUsers.filter(u => u.visible !== false);
+  const presenceChannelRef = useRef(null);
 
   // ------------------------------------------------------------
   // announcements
@@ -681,7 +733,7 @@ export default function App() {
   const [quizMode, setQuizMode] = useState('list'); // list | builder | take | records
   const [activeQuizId, setActiveQuizId] = useState(null);
   const [builder, setBuilder] = useState(null); // {step, id, title, password, items}
-  const [takeState, setTakeState] = useState({ name: '', grade: '', section: '', gate: '', started: false, answers: {} });
+  const [takeState, setTakeState] = useState({ gate: '', started: false, answers: {} });
   const [takeError, setTakeError] = useState('');
   const [recordSectionFilter, setRecordSectionFilter] = useState('all');
 
@@ -724,13 +776,18 @@ export default function App() {
       const correct = (item.answer || '').toString().toLowerCase().trim();
       if (given && given === correct) score++;
     });
+    // Student name, grade, and section come from the account/section chosen at
+    // login/signup — never re-asked here. Non-student roles (teacher/editor
+    // taking a quiz to preview it) simply have no section on file.
     setQuizRecords(prev => [...prev, {
-      id: nextId(), quizId: quiz.id, studentName: takeState.name, grade: takeState.grade,
-      section: takeState.section, score, maxScore: quiz.items.length, ts: new Date().toLocaleString()
+      id: nextId(), quizId: quiz.id, studentName: currentUser.name,
+      grade: currentUserSection ? currentUserSection.grade : '',
+      section: currentUserSection ? currentUserSection.title : '',
+      score, maxScore: quiz.items.length, ts: new Date().toLocaleString()
     }]);
-    logAction('quiz submitted', `${takeState.name} / ${quiz.title} (${score}/${quiz.items.length})`);
+    logAction('quiz submitted', `${currentUser.name} / ${quiz.title} (${score}/${quiz.items.length})`);
     setLastResult({ title: quiz.title, score, maxScore: quiz.items.length });
-    setTakeState({ name: '', grade: '', section: '', gate: '', started: false, answers: {} });
+    setTakeState({ gate: '', started: false, answers: {} });
     setQuizMode('list');
   };
 
@@ -755,7 +812,8 @@ export default function App() {
   };
 
   // ------------------------------------------------------------
-  // author profile
+  // author profile — the primary Creator profile, plus any number of
+  // additional authors/contributors added afterward.
   // ------------------------------------------------------------
   const [authorName, setAuthorName] = useState('MARK NIEL PAITON');
   const [authorTitle, setAuthorTitle] = useState('Creator & Architect');
@@ -763,6 +821,27 @@ export default function App() {
   const [authorEditing, setAuthorEditing] = useState(false);
   const [authorPhotoUrl, setAuthorPhotoUrl] = useState(null);
   const uploadAuthorPhoto = () => triggerRealUpload({ type: 'authorPhoto' }, { accept: 'image/*', label: 'Allow access to your photos to update the author picture.' });
+
+  const [authors, setAuthors] = useState([]); // [{id, name, title, bio, photo}]
+  const [authorModal, setAuthorModal] = useState({ open: false, data: null });
+  const openAuthorModal = (data) => setAuthorModal({ open: true, data: data || { id: null, name: '', title: '', bio: '', photo: null } });
+  const uploadAuthorModalPhoto = () => triggerRealUpload({ type: 'authorModalPhoto' }, { accept: 'image/*', label: 'Allow access to your photos to set this author\u2019s picture.' });
+  const saveAuthorEntry = () => {
+    if (!authorModal.data.name.trim()) return;
+    const payload = { ...authorModal.data, id: authorModal.data.id || nextId() };
+    setAuthors(prev => {
+      const exists = prev.some(a => a.id === payload.id);
+      return exists ? prev.map(a => a.id === payload.id ? payload : a) : [...prev, payload];
+    });
+    logAction(authorModal.data.id ? 'edited author' : 'added author', payload.name);
+    triggerToast(authorModal.data.id ? 'Author updated' : 'Author added');
+    setAuthorModal({ open: false, data: null });
+  };
+  const deleteAuthorEntry = (id) => {
+    const a = authors.find(x => x.id === id);
+    setAuthors(prev => prev.filter(x => x.id !== id));
+    if (a) logAction('removed author', a.name);
+  };
 
   // ------------------------------------------------------------
   // role helpers
@@ -776,8 +855,42 @@ export default function App() {
   const currentUserSection = currentUser?.sectionId ? sections.find(s => s.id === currentUser.sectionId) : null;
 
   // ------------------------------------------------------------
-  // PERSISTENCE — load once on mount, save (debounced) on change
+  // PERSISTENCE — load once on mount, save (debounced) on change, and (when
+  // Supabase is configured) subscribe to realtime changes so uploads made on
+  // one device appear on every other device without a manual refresh.
   // ------------------------------------------------------------
+  const applyRemoteData = (data, { includeCurrentUser }) => {
+    if (Array.isArray(data.accounts)) setAccounts(data.accounts);
+    if (Array.isArray(data.sections)) setSections(data.sections);
+    if (Array.isArray(data.folders)) setFolders(data.folders);
+    if (Array.isArray(data.announcements)) setAnnouncements(data.announcements);
+    if (Array.isArray(data.projectFiles)) setProjectFiles(data.projectFiles);
+    if (Array.isArray(data.achievers)) setAchievers(data.achievers);
+    if (Array.isArray(data.quizzes)) setQuizzes(data.quizzes);
+    if (Array.isArray(data.quizRecords)) setQuizRecords(data.quizRecords);
+    if (Array.isArray(data.notifications)) setNotifications(data.notifications);
+    if (Array.isArray(data.history)) setHistory(data.history);
+    // onlineUsers is intentionally NOT restored from the saved blob — presence
+    // is live, transient state owned by the Supabase Presence channel (or the
+    // local-only fallback), never durable data. Loading a stale saved copy
+    // here would make offline accounts appear to "come back online" on reload.
+    if (typeof data.portalTitle === 'string' && data.portalTitle.trim()) setPortalTitle(data.portalTitle);
+    // currentUser is this browser's own login session — it must only ever be
+    // restored from THIS device's own last-saved state on first load, never
+    // overwritten by a change that arrived from a different device/user over
+    // realtime sync, or every browser would keep hijacking each other's login.
+    if (includeCurrentUser && data.currentUser) setCurrentUser(data.currentUser);
+    if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+    if (data.author) {
+      setAuthorName(data.author.name || 'MARK NIEL PAITON');
+      setAuthorTitle(data.author.title || 'Creator & Architect');
+      setAuthorBio(data.author.bio || '');
+      setAuthorPhotoUrl(data.author.photo || null);
+    }
+    if (Array.isArray(data.authors)) setAuthors(data.authors);
+    if (typeof data.idCounter === 'number') idCounter = Math.max(idCounter, data.idCounter);
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -786,27 +899,7 @@ export default function App() {
         const res = await persistence.get(STORAGE_KEY, true);
         if (res && res.value && !cancelled) {
           const data = JSON.parse(res.value);
-          if (Array.isArray(data.accounts)) setAccounts(data.accounts);
-          if (Array.isArray(data.sections)) setSections(data.sections);
-          if (Array.isArray(data.folders)) setFolders(data.folders);
-          if (Array.isArray(data.announcements)) setAnnouncements(data.announcements);
-          if (Array.isArray(data.projectFiles)) setProjectFiles(data.projectFiles);
-          if (Array.isArray(data.achievers)) setAchievers(data.achievers);
-          if (Array.isArray(data.quizzes)) setQuizzes(data.quizzes);
-          if (Array.isArray(data.quizRecords)) setQuizRecords(data.quizRecords);
-          if (Array.isArray(data.notifications)) setNotifications(data.notifications);
-          if (Array.isArray(data.history)) setHistory(data.history);
-          if (Array.isArray(data.onlineUsers)) setOnlineUsers(data.onlineUsers);
-          if (typeof data.portalTitle === 'string' && data.portalTitle.trim()) setPortalTitle(data.portalTitle);
-          if (data.currentUser) setCurrentUser(data.currentUser);
-          if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
-          if (data.author) {
-            setAuthorName(data.author.name || 'MARK NIEL PAITON');
-            setAuthorTitle(data.author.title || 'Creator & Architect');
-            setAuthorBio(data.author.bio || '');
-            setAuthorPhotoUrl(data.author.photo || null);
-          }
-          if (typeof data.idCounter === 'number') idCounter = Math.max(idCounter, data.idCounter);
+          applyRemoteData(data, { includeCurrentUser: true });
           // Default Directory setting drives the initial active section/folder view
           // on login rather than a hardcoded tab.
           if (data.settings && data.settings.defaultDirectory) {
@@ -833,13 +926,73 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
+  // Realtime subscription — only active when Supabase is actually configured.
+  // Whenever ANY device saves, every other open browser receives the new row
+  // and applies it immediately, which is what makes uploads/edits genuinely
+  // shared across devices instead of trapped in one browser's own storage.
+  const applyingRemoteRef = useRef(false);
+  useEffect(() => {
+    if (!supabaseConfigured || !dataLoaded) return;
+    const channel = supabase
+      .channel('portal_data_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_data', filter: `id=eq.${STORAGE_KEY}` }, (payload) => {
+        const data = payload.new && payload.new.data;
+        if (!data) return;
+        applyingRemoteRef.current = true;
+        applyRemoteData(data, { includeCurrentUser: false });
+        // Release the guard on the next tick, after React has processed the
+        // batch of setters above — see the save effect below for why this flag
+        // exists (to stop an incoming remote change from immediately bouncing
+        // straight back out as an outgoing save).
+        setTimeout(() => { applyingRemoteRef.current = false; }, 0);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [dataLoaded]);
+
+  // Presence channel — a separate Supabase realtime channel purpose-built for
+  // "who's here right now." Joins when a user is signed in on this device,
+  // leaves automatically on logout OR if the tab closes/connection drops
+  // (Supabase detects that itself), and every browser's presence state stays
+  // in sync so the Online panel is accurate across devices without polling.
+  useEffect(() => {
+    if (!supabaseConfigured || !dataLoaded) return;
+    const channel = supabase.channel('portal_presence', { config: { presence: { key: currentUser ? currentUser.email : `guest-${Math.random().toString(36).slice(2)}` } } });
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        // presenceState groups by key; each key can have multiple entries if
+        // the same account is open in several tabs — collapse to one row per
+        // account, since the panel lists people, not tabs/devices.
+        const merged = Object.values(state).map(entries => entries[entries.length - 1]).filter(Boolean);
+        setOnlineUsers(merged);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          presenceChannelRef.current = channel;
+          if (currentUser) {
+            channel.track({ email: currentUser.email, name: currentUser.name, role: currentUser.role, sectionId: currentUser.sectionId || null, visible: settings.profileVisibility !== false });
+          }
+        }
+      });
+    return () => {
+      channel.untrack();
+      supabase.removeChannel(channel);
+      if (presenceChannelRef.current === channel) presenceChannelRef.current = null;
+    };
+  }, [dataLoaded, currentUser?.email]);
+
   useEffect(() => {
     if (!dataLoaded) return;
+    // Don't re-save data that just arrived FROM a realtime update — that would
+    // create a pointless save-receive-save loop between devices.
+    if (applyingRemoteRef.current) return;
     const handle = setTimeout(() => {
       const payload = {
         accounts, sections, folders, announcements, projectFiles, achievers,
-        quizzes, quizRecords, notifications, settings, onlineUsers, portalTitle,
+        quizzes, quizRecords, notifications, settings, portalTitle,
         author: { name: authorName, title: authorTitle, bio: authorBio, photo: authorPhotoUrl },
+        authors,
         history,
         currentUser,
         idCounter
@@ -867,22 +1020,31 @@ export default function App() {
       attemptSave(2);
     }, 500);
     return () => clearTimeout(handle);
-  }, [accounts, sections, folders, announcements, projectFiles, achievers, quizzes, quizRecords, notifications, settings, onlineUsers, portalTitle, authorName, authorTitle, authorBio, authorPhotoUrl, dataLoaded]);
+  }, [accounts, sections, folders, announcements, projectFiles, achievers, quizzes, quizRecords, notifications, settings, portalTitle, authorName, authorTitle, authorBio, authorPhotoUrl, authors, dataLoaded]);
 
   // ------------------------------------------------------------
   // AUTH: sign in
   // ------------------------------------------------------------
-  // Adds/removes an account from the shared "currently signed in" presence list.
-  // This reflects real sign-ins/sign-outs across devices via shared storage —
-  // not a live heartbeat, just session presence.
+  // Tracks this device's own presence on the shared Supabase channel (when
+  // configured) so every open browser — any account, any device — shows up
+  // for everyone else in real time, and automatically disappears if the tab
+  // closes or the connection drops, not just on an explicit logout.
+  // Falls back to a simple local-only entry when Supabase isn't configured,
+  // matching the previous single-device behavior.
   const markUserOnline = (acc) => {
-    setOnlineUsers(prev => {
-      const withoutMe = prev.filter(u => u.email !== acc.email);
-      return [...withoutMe, { email: acc.email, name: acc.name, role: acc.role, sectionId: acc.sectionId || null, visible: true }];
-    });
+    const entry = { email: acc.email, name: acc.name, role: acc.role, sectionId: acc.sectionId || null, visible: settings.profileVisibility !== false };
+    if (supabaseConfigured && presenceChannelRef.current) {
+      presenceChannelRef.current.track(entry);
+    } else {
+      setOnlineUsers(prev => [...prev.filter(u => u.email !== acc.email), entry]);
+    }
   };
   const markUserOffline = (email) => {
-    setOnlineUsers(prev => prev.filter(u => u.email !== email));
+    if (supabaseConfigured && presenceChannelRef.current) {
+      presenceChannelRef.current.untrack();
+    } else {
+      setOnlineUsers(prev => prev.filter(u => u.email !== email));
+    }
   };
 
   const handleSignIn = (e) => {
@@ -915,7 +1077,7 @@ export default function App() {
   // ------------------------------------------------------------
   // AUTH: sign up wizard steps
   // ------------------------------------------------------------
-  const chooseRole = (role) => { setWizRole(role); setWizStep(role === 'student' ? 'section' : role === 'teacher' ? 'id' : 'gate'); };
+  const chooseRole = (role) => { setWizRole(role); setWizStep(role === 'student' ? 'section' : role === 'teacher' ? 'teacherGate' : 'gate'); };
 
   const runScan = (onDone) => {
     setScanning(true);
@@ -924,6 +1086,15 @@ export default function App() {
 
   const studentPickSection = () => {
     if (!wizData.sectionId) return;
+    setWizStep('id');
+  };
+
+  // Teachers must enter this shared access password before they're allowed to
+  // proceed to ID upload/verification — a gate on the teacher signup path
+  // itself, separate from the existing Editor gate password.
+  const teacherGateContinue = () => {
+    if (wizData.gatePassword !== TEACHER_SIGNUP_GATE_PASSWORD) { setAuthError('Incorrect teacher access password.'); return; }
+    setAuthError('');
     setWizStep('id');
   };
 
@@ -1131,6 +1302,14 @@ export default function App() {
                     <p className="text-xs" style={{ color: C.textDim }}>Enter the editor access password to continue.</p>
                     <Field type="password" placeholder="Editor Access Password" value={wizData.gatePassword} onChange={e => setWizData({ ...wizData, gatePassword: e.target.value })} />
                     <Btn className="w-full py-3" onClick={gateContinue} reducedMotion={reducedMotion}>Continue</Btn>
+                  </div>
+                )}
+
+                {wizStep === 'teacherGate' && (
+                  <div className="space-y-4">
+                    <p className="text-xs" style={{ color: C.textDim }}>Enter the teacher access password before uploading your ID.</p>
+                    <Field type="password" placeholder="Teacher Access Password" value={wizData.gatePassword} onChange={e => setWizData({ ...wizData, gatePassword: e.target.value })} />
+                    <Btn className="w-full py-3" onClick={teacherGateContinue} reducedMotion={reducedMotion}>Continue</Btn>
                   </div>
                 )}
 
@@ -1374,28 +1553,65 @@ export default function App() {
         <main className="p-6 max-w-5xl w-full mx-auto pb-24">
           {/* AUTHOR PROFILE */}
           {activeTab === 'author' && (
-            <Card className="p-10 text-center">
-              <div className="w-28 h-28 mx-auto rounded-full flex items-center justify-center mb-5 cursor-pointer overflow-hidden" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.accent}` }} onClick={() => isCreator && uploadAuthorPhoto()}>
-                {authorPhotoUrl ? <img src={authorPhotoUrl} alt={authorName} className="w-full h-full object-cover" /> : <User className="w-10 h-10" style={{ color: C.accent }} />}
-              </div>
-              {isCreator && <p className="text-[9px] uppercase font-bold mb-4 -mt-2" style={{ color: C.textDim }}>Tap photo to change</p>}
-
-              {authorEditing ? (
-                <div className="max-w-lg mx-auto space-y-3">
-                  <Field placeholder="Full Name" value={authorName} onChange={e => setAuthorName(e.target.value)} className="text-center font-extrabold" />
-                  <Field placeholder="Title (e.g. Creator & Architect)" value={authorTitle} onChange={e => setAuthorTitle(e.target.value)} className="text-center" />
-                  <textarea placeholder="Bio" value={authorBio} onChange={e => setAuthorBio(e.target.value)} className="w-full h-28 p-3 rounded-xl text-sm outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }} />
-                  <Btn className="w-full" onClick={() => setAuthorEditing(false)} reducedMotion={reducedMotion}>Save Profile</Btn>
+            <div>
+              <Card className="p-10 text-center">
+                <div className="w-28 h-28 mx-auto rounded-full flex items-center justify-center mb-5 cursor-pointer overflow-hidden" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.accent}` }} onClick={() => isCreator && uploadAuthorPhoto()}>
+                  {authorPhotoUrl ? <img src={authorPhotoUrl} alt={authorName} className="w-full h-full object-cover" /> : <User className="w-10 h-10" style={{ color: C.accent }} />}
                 </div>
+                {isCreator && <p className="text-[9px] uppercase font-bold mb-4 -mt-2" style={{ color: C.textDim }}>Tap photo to change</p>}
+
+                {authorEditing ? (
+                  <div className="max-w-lg mx-auto space-y-3">
+                    <Field placeholder="Full Name" value={authorName} onChange={e => setAuthorName(e.target.value)} className="text-center font-extrabold" />
+                    <Field placeholder="Title (e.g. Creator & Architect)" value={authorTitle} onChange={e => setAuthorTitle(e.target.value)} className="text-center" />
+                    <textarea placeholder="Bio" value={authorBio} onChange={e => setAuthorBio(e.target.value)} className="w-full h-28 p-3 rounded-xl text-sm outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }} />
+                    <Btn className="w-full" onClick={() => setAuthorEditing(false)} reducedMotion={reducedMotion}>Save Profile</Btn>
+                  </div>
+                ) : (
+                  <>
+                    <h1 className="text-2xl font-extrabold mb-1">{authorName}</h1>
+                    <Chip>{authorTitle}</Chip>
+                    <p className="mt-6 max-w-lg mx-auto text-sm leading-relaxed" style={{ color: C.textDim }}>{authorBio}</p>
+                  </>
+                )}
+                {isCreator && !authorEditing && <Btn variant="ghost" className="mt-4" onClick={() => setAuthorEditing(true)} reducedMotion={reducedMotion}><Edit className="w-3 h-3" /> Edit Profile</Btn>}
+              </Card>
+
+              {/* Additional authors/contributors — creator and editors can add more. */}
+              <div className="flex items-center justify-between mt-6 mb-3">
+                <p className="text-[10px] font-bold uppercase" style={{ color: C.textDim }}>Additional Authors</p>
+                {canEditEverything && <Btn variant="ghost" onClick={() => openAuthorModal(null)} reducedMotion={reducedMotion}><Plus className="w-4 h-4" /> Add Author</Btn>}
+              </div>
+              {authors.length === 0 ? (
+                <Card className="p-8 text-center">
+                  <User className="w-8 h-8 mx-auto mb-2" style={{ color: C.textDim }} />
+                  <p className="text-xs" style={{ color: C.textDim }}>No additional authors yet.</p>
+                </Card>
               ) : (
-                <>
-                  <h1 className="text-2xl font-extrabold mb-1">{authorName}</h1>
-                  <Chip>{authorTitle}</Chip>
-                  <p className="mt-6 max-w-lg mx-auto text-sm leading-relaxed" style={{ color: C.textDim }}>{authorBio}</p>
-                </>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {authors.map(a => (
+                    <Card key={a.id} className="p-5 relative">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden shrink-0" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.accent}` }}>
+                          {a.photo ? <img src={a.photo} alt={a.name} className="w-full h-full object-cover" /> : <User className="w-5 h-5" style={{ color: C.accent }} />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-extrabold truncate">{a.name}</p>
+                          {a.title && <p className="text-[10px] uppercase font-bold" style={{ color: C.accent }}>{a.title}</p>}
+                        </div>
+                      </div>
+                      {a.bio && <p className="text-xs mt-3 leading-relaxed" style={{ color: C.textDim }}>{a.bio}</p>}
+                      {canEditEverything && (
+                        <div className="absolute top-3 right-3 flex gap-1.5">
+                          <button onClick={() => openAuthorModal(a)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.textDim }}><Edit className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => deleteAuthorEntry(a.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.danger }}><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
               )}
-              {isCreator && !authorEditing && <Btn variant="ghost" className="mt-4" onClick={() => setAuthorEditing(true)} reducedMotion={reducedMotion}><Edit className="w-3 h-3" /> Edit Profile</Btn>}
-            </Card>
+            </div>
           )}
 
           {/* ANNOUNCEMENTS */}
@@ -1692,7 +1908,7 @@ export default function App() {
                         <div><h3 className="text-sm font-bold">{q.title}</h3><p className="text-[10px]" style={{ color: C.textDim }}>{q.items.length} Questions</p></div>
                         <div className="flex gap-2 flex-wrap">
                           {/* Take Quiz — routes into the gated quiz-taking flow. */}
-                          <Btn onClick={() => { setActiveQuizId(q.id); setQuizMode('take'); setTakeError(''); setTakeState({ name: '', grade: '', section: '', gate: '', started: false, answers: {} }); }} reducedMotion={reducedMotion}>
+                          <Btn onClick={() => { setActiveQuizId(q.id); setQuizMode('take'); setTakeError(''); setTakeState({ gate: '', started: false, answers: {} }); }} reducedMotion={reducedMotion}>
                             <Play className="w-3.5 h-3.5" /> Take Quiz
                           </Btn>
                           {!isStudent && (
@@ -1776,15 +1992,19 @@ export default function App() {
                       <div className="space-y-4 text-center">
                         <Lock className="w-10 h-10 mx-auto" style={{ color: C.textDim }} />
                         <h3 className="text-lg font-extrabold">{activeQuiz.title}</h3>
+                        {/* Name, grade, and section come from the account chosen at
+                            login — shown read-only for confirmation, never re-asked. */}
+                        <div className="p-3 rounded-xl text-left" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
+                          <p className="text-sm font-bold">{currentUser.name}</p>
+                          <p className="text-[10px] uppercase" style={{ color: C.accent }}>
+                            {currentUserSection ? currentUserSection.title : currentUser.role}
+                          </p>
+                        </div>
                         {takeError && <p className="text-xs font-semibold" style={{ color: C.danger }}>{takeError}</p>}
-                        <Field placeholder="Full Name" value={takeState.name} onChange={e => setTakeState({ ...takeState, name: e.target.value })} />
-                        <Field placeholder="Grade Level" value={takeState.grade} onChange={e => setTakeState({ ...takeState, grade: e.target.value })} />
-                        <Field placeholder="Section" value={takeState.section} onChange={e => setTakeState({ ...takeState, section: e.target.value })} />
                         <Field type="password" placeholder="Quiz Access Password" value={takeState.gate} onChange={e => setTakeState({ ...takeState, gate: e.target.value })} />
                         <div className="flex gap-3 pt-2">
                           <Btn variant="ghost" className="flex-1" onClick={() => setQuizMode('list')} reducedMotion={reducedMotion}>Cancel</Btn>
                           <Btn className="flex-1" onClick={() => {
-                            if (!takeState.name.trim() || !takeState.grade.trim() || !takeState.section.trim()) { setTakeError('Please fill in your name, grade level, and section.'); return; }
                             if (takeState.gate !== activeQuiz.password) { setTakeError('Incorrect quiz access password.'); return; }
                             setTakeError('');
                             setTakeState(prev => ({ ...prev, started: true }));
@@ -1938,6 +2158,28 @@ export default function App() {
         </div>
       )}
 
+      {/* ADD/EDIT AUTHOR MODAL */}
+      {authorModal.open && authorModal.data && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+          <Card className="w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-extrabold">{authorModal.data.id ? 'Edit Author' : 'Add Author'}</h3>
+              <button onClick={() => setAuthorModal({ open: false, data: null })} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center cursor-pointer overflow-hidden" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.accent}` }} onClick={uploadAuthorModalPhoto}>
+                {authorModal.data.photo ? <img src={authorModal.data.photo} alt="" className="w-full h-full object-cover" /> : <User className="w-6 h-6" style={{ color: C.textDim }} />}
+              </div>
+              <p className="text-[9px] uppercase font-bold text-center -mt-2" style={{ color: C.textDim }}>Tap to upload photo</p>
+              <Field placeholder="Full Name" value={authorModal.data.name} onChange={e => setAuthorModal(prev => ({ ...prev, data: { ...prev.data, name: e.target.value } }))} />
+              <Field placeholder="Title (e.g. Co-Developer, Contributor)" value={authorModal.data.title} onChange={e => setAuthorModal(prev => ({ ...prev, data: { ...prev.data, title: e.target.value } }))} />
+              <textarea placeholder="Bio" value={authorModal.data.bio} onChange={e => setAuthorModal(prev => ({ ...prev, data: { ...prev.data, bio: e.target.value } }))} className="w-full h-20 p-3 rounded-xl text-sm outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }} />
+              <Btn className="w-full py-3" onClick={saveAuthorEntry} disabled={!authorModal.data.name.trim()} reducedMotion={reducedMotion}>Save Author</Btn>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* ONLINE PANEL — who's currently signed in, with a live count and a close button. */}
       {onlinePanelOpen && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
@@ -1951,7 +2193,7 @@ export default function App() {
                   </span>
                   Online Now
                 </h3>
-                <p className="text-[10px] mt-1" style={{ color: C.textDim }}>{visibleOnlineUsers.length} device{visibleOnlineUsers.length === 1 ? '' : 's'} currently signed in</p>
+                <p className="text-[10px] mt-1" style={{ color: C.textDim }}>{visibleOnlineUsers.length} account{visibleOnlineUsers.length === 1 ? '' : 's'} currently online</p>
               </div>
               <button onClick={() => setOnlinePanelOpen(false)} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
             </div>
