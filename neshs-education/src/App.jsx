@@ -74,8 +74,8 @@ const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').tri
 // Until these are filled in, the app automatically falls back to this
 // browser's own localStorage (the previous per-device behavior) so it never
 // breaks — it just won't be shared across devices until configured.
-const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://hbngkotponhbncbfweqx.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_ZfcT9BIp74ycdHknOCNV8A_cfUgaPzF';
 const supabaseConfigured = SUPABASE_URL.startsWith('http') && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
 const supabase = supabaseConfigured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -1377,6 +1377,16 @@ export default function App() {
       {saveError && (
         <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-xs" style={{ backgroundColor: 'rgba(255,122,122,0.14)', border: `1px solid ${C.danger}`, color: C.danger }}>
           {saveError}
+        </div>
+      )}
+      {/* Visible, hard-to-miss warning when Supabase isn't configured — the app
+          silently falls back to per-device storage otherwise, which is exactly
+          what caused online users and uploads to look "invisible" to other
+          devices. Only shown to creator/editor since they're the ones who can
+          fix it, and only once they're past the login screen. */}
+      {!supabaseConfigured && canEditEverything && (
+        <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-xs" style={{ backgroundColor: 'rgba(244,208,111,0.14)', border: `1px solid ${C.gold}`, color: C.gold }}>
+          Supabase isn't configured — data and online users are only visible on this device. Add your project URL and anon key to go live for everyone.
         </div>
       )}
 
