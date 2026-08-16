@@ -54,6 +54,13 @@ const CREATOR_PASSWORD = 'Paiton16';
 const EDITOR_GATE_PASSWORD = 'N35H@N45ugbuE45t!';
 const TEACHER_SIGNUP_GATE_PASSWORD = 'Sch00lN3t#9876';
 const STORAGE_KEY = 'neshs_portal_data_v1';
+// Accounts and the active login session are intentionally NEVER shared across
+// devices — each browser keeps its own separately, always in plain
+// localStorage regardless of whether Supabase is configured. Signing up on
+// one device does not create a visible account on another; uploaded content
+// (files, folders, announcements, quizzes, etc.) is the only thing that's
+// shared via Supabase — accounts stay local, uploads stay public.
+const LOCAL_ACCOUNTS_KEY = 'neshs_portal_local_accounts_v1';
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
 
 // ------------------------------------------------------------
@@ -859,8 +866,9 @@ export default function App() {
   // Supabase is configured) subscribe to realtime changes so uploads made on
   // one device appear on every other device without a manual refresh.
   // ------------------------------------------------------------
-  const applyRemoteData = (data, { includeCurrentUser }) => {
-    if (Array.isArray(data.accounts)) setAccounts(data.accounts);
+  const applyRemoteData = (data) => {
+    // NOTE: accounts and currentUser are handled by their own dedicated
+    // local-only effect below — never part of the shared Supabase blob.
     if (Array.isArray(data.sections)) setSections(data.sections);
     if (Array.isArray(data.folders)) setFolders(data.folders);
     if (Array.isArray(data.announcements)) setAnnouncements(data.announcements);
@@ -875,11 +883,6 @@ export default function App() {
     // local-only fallback), never durable data. Loading a stale saved copy
     // here would make offline accounts appear to "come back online" on reload.
     if (typeof data.portalTitle === 'string' && data.portalTitle.trim()) setPortalTitle(data.portalTitle);
-    // currentUser is this browser's own login session — it must only ever be
-    // restored from THIS device's own last-saved state on first load, never
-    // overwritten by a change that arrived from a different device/user over
-    // realtime sync, or every browser would keep hijacking each other's login.
-    if (includeCurrentUser && data.currentUser) setCurrentUser(data.currentUser);
     if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
     if (data.author) {
       setAuthorName(data.author.name || 'MARK NIEL PAITON');
@@ -891,6 +894,37 @@ export default function App() {
     if (typeof data.idCounter === 'number') idCounter = Math.max(idCounter, data.idCounter);
   };
 
+  // Accounts + the active login session — always local to this device/browser,
+  // loaded and saved straight to localStorage, completely separate from the
+  // shared Supabase-backed content above. Runs once on mount, independent of
+  // whether Supabase is configured or the shared data has finished loading.
+  const [localAccountsLoaded, setLocalAccountsLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(LOCAL_ACCOUNTS_KEY);
+      if (raw) {
+        const local = JSON.parse(raw);
+        if (Array.isArray(local.accounts)) setAccounts(local.accounts);
+        if (local.currentUser) setCurrentUser(local.currentUser);
+      }
+    } catch (err) {
+      // No valid local account data yet on this device — start fresh, no
+      // shared data is at risk here since this key never touches Supabase.
+    }
+    setLocalAccountsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!localAccountsLoaded) return;
+    try {
+      window.localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify({ accounts, currentUser }));
+    } catch (err) {
+      // Best-effort — a full/blocked localStorage here just means this
+      // device's login session won't persist across a reload, not a loss of
+      // any shared content.
+    }
+  }, [accounts, currentUser, localAccountsLoaded]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -899,7 +933,7 @@ export default function App() {
         const res = await persistence.get(STORAGE_KEY, true);
         if (res && res.value && !cancelled) {
           const data = JSON.parse(res.value);
-          applyRemoteData(data, { includeCurrentUser: true });
+          applyRemoteData(data);
           // Default Directory setting drives the initial active section/folder view
           // on login rather than a hardcoded tab.
           if (data.settings && data.settings.defaultDirectory) {
@@ -939,7 +973,7 @@ export default function App() {
         const data = payload.new && payload.new.data;
         if (!data) return;
         applyingRemoteRef.current = true;
-        applyRemoteData(data, { includeCurrentUser: false });
+        applyRemoteData(data);
         // Release the guard on the next tick, after React has processed the
         // batch of setters above — see the save effect below for why this flag
         // exists (to stop an incoming remote change from immediately bouncing
@@ -989,12 +1023,11 @@ export default function App() {
     if (applyingRemoteRef.current) return;
     const handle = setTimeout(() => {
       const payload = {
-        accounts, sections, folders, announcements, projectFiles, achievers,
+        sections, folders, announcements, projectFiles, achievers,
         quizzes, quizRecords, notifications, settings, portalTitle,
         author: { name: authorName, title: authorTitle, bio: authorBio, photo: authorPhotoUrl },
         authors,
         history,
-        currentUser,
         idCounter
       };
       let json;
@@ -1020,7 +1053,7 @@ export default function App() {
       attemptSave(2);
     }, 500);
     return () => clearTimeout(handle);
-  }, [accounts, sections, folders, announcements, projectFiles, achievers, quizzes, quizRecords, notifications, settings, portalTitle, authorName, authorTitle, authorBio, authorPhotoUrl, authors, dataLoaded]);
+  }, [sections, folders, announcements, projectFiles, achievers, quizzes, quizRecords, notifications, settings, portalTitle, authorName, authorTitle, authorBio, authorPhotoUrl, authors, dataLoaded]);
 
   // ------------------------------------------------------------
   // AUTH: sign in
@@ -1162,7 +1195,10 @@ export default function App() {
   // ================================================================
   // INITIAL LOAD SCREEN
   // ================================================================
-  if (!dataLoaded) {
+  // Waits on BOTH loads: the shared Supabase-backed content AND this
+  // device's own local accounts/session — the login screen right after this
+  // needs accounts to be ready, and neither load blocks on the other.
+  if (!dataLoaded || !localAccountsLoaded) {
     // A load failure sets saveError and deliberately never flips dataLoaded to
     // true — this screen must say so plainly rather than spin forever, since
     // silently proceeding into the app would risk the next save overwriting
