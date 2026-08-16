@@ -145,6 +145,45 @@ const persistence = supabaseConfigured
   ? window.storage
   : localStorageAdapter;
 
+// ------------------------------------------------------------
+// Supabase Storage — where actual uploaded FILES live (images, videos,
+// documents, ID photos). Previously every file was embedded as base64 text
+// directly inside the single shared JSON row in portal_data, which meant
+// every upload re-sent the ENTIRE app's accumulated files on every save —
+// quickly exceeding Supabase's request size limits and silently failing
+// (an upload would appear to succeed locally, then vanish once the failed
+// write bounced back through realtime sync). Real files now go to a Storage
+// bucket instead; only a small public URL is stored in the shared data.
+//
+// One-time setup in the Supabase dashboard: Storage → New Bucket → name it
+// exactly "portal-files" → toggle "Public bucket" on (so uploaded files can
+// be viewed/played/downloaded without extra auth plumbing).
+const STORAGE_BUCKET = 'portal-files';
+
+// Uploads a File to Supabase Storage and returns its public URL. Falls back
+// to embedding the file as a base64 data URL (the old behavior) when
+// Supabase isn't configured, so local-only mode keeps working exactly as
+// before — only real deployments with Storage configured get real file
+// hosting; nothing breaks for a Supabase-less setup.
+const uploadFileToStorage = async (file, pathPrefix) => {
+  if (!supabaseConfigured) return fileToDataURL(file);
+  try {
+    const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+    const path = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
+    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { cacheControl: '3600', upsert: false });
+    if (error) throw error;
+    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  } catch (err) {
+    warnFallbackOnce('storage upload', err);
+    // Fall back to embedding this one file as base64 rather than losing the
+    // upload entirely — large files will still risk hitting the same size
+    // limit this was built to avoid, but a small image/doc will go through
+    // fine, and the person isn't left with a silently failed upload.
+    return fileToDataURL(file);
+  }
+};
+
 const CORE_MODULES = [
   { id: 'announcements', icon: Megaphone, label: 'Announcements' },
   { id: 'projectHistory', icon: BookOpen, label: 'Project History' },
@@ -356,6 +395,7 @@ export default function App() {
   // real device file picker (images / videos / documents) shared by every upload button
   const fileInputRef = useRef(null);
   const uploadContextRef = useRef(null);
+  const [filesUploading, setFilesUploading] = useState(false);
 
   const guessKind = (file) => {
     if (file.type.startsWith('image/')) return 'Image';
@@ -398,14 +438,32 @@ export default function App() {
     uploadContextRef.current = null;
     if (!files.length || !context) return;
 
+    // Storage uploads are real network requests (unlike the old instant
+    // base64 conversion), so show visible progress instead of letting the
+    // UI look frozen/unresponsive during a multi-second upload.
+    setFilesUploading(true);
+    try {
+      await handleFilesSelectedInner(files, context);
+    } catch (err) {
+      // uploadFileToStorage already falls back to base64 on a Storage
+      // failure, so this only fires for a genuinely unexpected error (e.g. a
+      // bug in the handler itself) — surface it rather than letting the
+      // upload silently vanish with no explanation.
+      triggerToast('Upload failed — please try again.');
+    } finally {
+      setFilesUploading(false);
+    }
+  };
+
+  const handleFilesSelectedInner = async (files, context) => {
     if (context.type === 'announcementMedia') {
-      const media = await Promise.all(files.map(async f => ({ id: nextId(), type: f.type.startsWith('video/') ? 'video' : 'image', name: f.name, url: await fileToDataURL(f) })));
+      const media = await Promise.all(files.map(async f => ({ id: nextId(), type: f.type.startsWith('video/') ? 'video' : 'image', name: f.name, url: await uploadFileToStorage(f, 'announcements') })));
       setAnnModal(prev => ({ ...prev, data: { ...prev.data, media: [...prev.data.media, ...media] } }));
     } else if (context.type === 'achieverPhotoModal') {
-      const url = await fileToDataURL(files[0]);
+      const url = await uploadFileToStorage(files[0], 'achievers');
       setAchieverModal(prev => ({ ...prev, data: { ...prev.data, photo: url } }));
     } else if (context.type === 'achieverPhotoDirect') {
-      const url = await fileToDataURL(files[0]);
+      const url = await uploadFileToStorage(files[0], 'achievers');
       setAchievers(prev => prev.map(a => a.id === context.id ? { ...a, photo: url } : a));
       triggerToast('Achiever photo updated');
     } else if (context.type === 'projectFile') {
@@ -420,7 +478,7 @@ export default function App() {
         mime: f.type,
         size: f.size,
         folderId: activeFolderId,
-        url: await fileToDataURL(f),
+        url: await uploadFileToStorage(f, 'project-history'),
         authorized: false,
         processed: true,
         uploadedBy: currentUser?.name || 'Unknown',
@@ -434,7 +492,7 @@ export default function App() {
       // its title, folder, and authorization state intact — the "rename + replace
       // content" path, distinct from a plain title-only rename.
       const f = files[0];
-      const url = await fileToDataURL(f);
+      const url = await uploadFileToStorage(f, 'project-history');
       const kind = guessKind(f);
       setProjectFiles(prev => prev.map(pf => pf.id === context.id ? { ...pf, name: f.name, kind, mime: f.type, size: f.size, url, uploadedAt: new Date().toLocaleString() } : pf));
       const existing = projectFiles.find(pf => pf.id === context.id);
@@ -442,15 +500,15 @@ export default function App() {
       triggerToast('File content replaced');
       setViewerFile(prev => (prev && prev.id === context.id ? { ...prev, name: f.name, kind, mime: f.type, size: f.size, url } : prev));
     } else if (context.type === 'authorPhoto') {
-      const url = await fileToDataURL(files[0]);
+      const url = await uploadFileToStorage(files[0], 'authors');
       setAuthorPhotoUrl(url);
       logAction('updated author photo', files[0].name || 'photo');
     } else if (context.type === 'authorModalPhoto') {
-      const url = await fileToDataURL(files[0]);
+      const url = await uploadFileToStorage(files[0], 'authors');
       setAuthorModal(prev => ({ ...prev, data: { ...prev.data, photo: url } }));
     } else if (context.type === 'idUpload') {
       const f = files[0];
-      const url = await fileToDataURL(f);
+      const url = await uploadFileToStorage(f, 'id-verification');
       setWizData(prev => ({ ...prev, idFileName: f.name, idFileUrl: url }));
       runScan(() => setWizData(prev => ({ ...prev, idVerified: true })));
     }
@@ -1433,6 +1491,17 @@ export default function App() {
         <div className={`fixed bottom-6 right-6 z-[400] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold ${motionBounce}`} style={{ backgroundColor: C.accent, color: C.bg }}>
           <CheckCircle className="w-4 h-4" />
           <span>{toast.message}</span>
+        </div>
+      )}
+      {/* Upload-in-progress indicator — Storage uploads are real network
+          requests, not instant, so this keeps the UI from looking frozen
+          during a multi-second upload (unlike toast, this is always shown
+          regardless of the notifications setting, since it reflects actual
+          in-flight work rather than an informational message). */}
+      {filesUploading && (
+        <div className="fixed bottom-6 right-6 z-[400] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold" style={{ backgroundColor: C.panel, border: `1px solid ${C.accent}`, color: C.accent }}>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Uploading...</span>
         </div>
       )}
       {saveError && (
