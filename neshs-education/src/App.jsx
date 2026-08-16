@@ -165,6 +165,13 @@ const STORAGE_BUCKET = 'portal-files';
 // Supabase isn't configured, so local-only mode keeps working exactly as
 // before — only real deployments with Storage configured get real file
 // hosting; nothing breaks for a Supabase-less setup.
+//
+// IMPORTANT: falling back to base64 here silently reintroduces the exact
+// "uploads vanish" bug this was built to fix (see STORAGE_BUCKET setup
+// comment above) — a missing/misconfigured bucket must never fail quietly.
+// storageUploadFailed is exported via a mutable flag so the UI can show a
+// clear, specific warning instead of a swallowed console.warn.
+let storageUploadFailed = null; // null = no failure seen yet; otherwise the error message
 const uploadFileToStorage = async (file, pathPrefix) => {
   if (!supabaseConfigured) return fileToDataURL(file);
   try {
@@ -173,8 +180,13 @@ const uploadFileToStorage = async (file, pathPrefix) => {
     const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { cacheControl: '3600', upsert: false });
     if (error) throw error;
     const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    storageUploadFailed = null;
     return data.publicUrl;
   } catch (err) {
+    const isMissingBucket = /bucket not found/i.test(err?.message || '');
+    storageUploadFailed = isMissingBucket
+      ? `The "${STORAGE_BUCKET}" Storage bucket doesn't exist yet in Supabase. Files are falling back to a mode that WILL cause them to disappear. Create the bucket (Storage → New bucket → name it "${STORAGE_BUCKET}" → make it public) to fix this.`
+      : `File uploads are failing (${err?.message || 'unknown Storage error'}) and falling back to a mode that WILL cause them to disappear.`;
     warnFallbackOnce('storage upload', err);
     // Fall back to embedding this one file as base64 rather than losing the
     // upload entirely — large files will still risk hitting the same size
@@ -396,6 +408,10 @@ export default function App() {
   const fileInputRef = useRef(null);
   const uploadContextRef = useRef(null);
   const [filesUploading, setFilesUploading] = useState(false);
+  // Mirrors the module-level storageUploadFailed flag into React state so a
+  // Storage failure (most commonly: the bucket hasn't been created yet)
+  // shows a visible, specific banner instead of only a console warning.
+  const [storageWarning, setStorageWarning] = useState(null);
 
   const guessKind = (file) => {
     if (file.type.startsWith('image/')) return 'Image';
@@ -452,6 +468,9 @@ export default function App() {
       triggerToast('Upload failed — please try again.');
     } finally {
       setFilesUploading(false);
+      // Pull the module-level flag (set inside uploadFileToStorage) into
+      // React state so a Storage failure renders a visible banner.
+      setStorageWarning(storageUploadFailed);
     }
   };
 
@@ -1517,6 +1536,18 @@ export default function App() {
       {!supabaseConfigured && canEditEverything && (
         <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-xs" style={{ backgroundColor: 'rgba(244,208,111,0.14)', border: `1px solid ${C.gold}`, color: C.gold }}>
           Supabase isn't configured — data and online users are only visible on this device. Add your project URL and anon key to go live for everyone.
+        </div>
+      )}
+      {/* Storage-specific failure banner — separate from the general Supabase
+          config warning above, because Supabase itself can be perfectly
+          configured (data syncs fine) while the Storage bucket specifically
+          is still missing, which is exactly what silently reintroduces the
+          "uploads vanish" bug. Dismissible since it's a persistent state
+          flag, not a one-off toast, and would otherwise block the view. */}
+      {storageWarning && canEditEverything && (
+        <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-sm flex items-start gap-2" style={{ backgroundColor: 'rgba(255,122,122,0.14)', border: `1px solid ${C.danger}`, color: C.danger }}>
+          <span className="flex-1">{storageWarning}</span>
+          <button onClick={() => setStorageWarning(null)} className="shrink-0"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 
