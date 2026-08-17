@@ -146,48 +146,160 @@ const persistence = supabaseConfigured
   : localStorageAdapter;
 
 // ------------------------------------------------------------
-// Supabase Storage — where actual uploaded FILES live (images, videos,
-// documents, ID photos). Previously every file was embedded as base64 text
-// directly inside the single shared JSON row in portal_data, which meant
-// every upload re-sent the ENTIRE app's accumulated files on every save —
-// quickly exceeding Supabase's request size limits and silently failing
-// (an upload would appear to succeed locally, then vanish once the failed
-// write bounced back through realtime sync). Real files now go to a Storage
-// bucket instead; only a small public URL is stored in the shared data.
+// File storage — where actual uploaded FILES live (images, videos, documents,
+// ID photos). Previously every file was embedded as base64 text directly
+// inside the single shared JSON row in portal_data, which meant every upload
+// re-sent the ENTIRE app's accumulated files on every save — quickly
+// exceeding request size limits and silently failing (an upload would
+// appear to succeed locally, then vanish once the failed write bounced back
+// through realtime sync). Real files now go to real object storage instead;
+// only a small public URL is stored in the shared data.
 //
-// One-time setup in the Supabase dashboard: Storage → New Bucket → name it
-// exactly "portal-files" → toggle "Public bucket" on (so uploaded files can
-// be viewed/played/downloaded without extra auth plumbing).
+// Three-tier fallback, tried in order for every upload:
+//   1. Cloudflare R2 (via a Supabase Edge Function that hands out a
+//      presigned upload URL) — the primary path once configured, since R2's
+//      free tier (10GB, no per-file cap worth worrying about here) fits
+//      large videos/decks far better than Supabase Storage's free tier
+//      (~1GB total, 50MB/file hard cap that can't be raised without a paid
+//      plan).
+//   2. Supabase Storage directly — used automatically if R2 isn't
+//      configured, or if a specific R2 upload fails.
+//   3. Base64 embedded in the shared data blob — the original behavior,
+//      used only when neither of the above is configured/working, and
+//      never for a file large enough that embedding it would be harmful
+//      (see MAX_UPLOAD_BYTES below).
+//
+// R2 + Edge Function one-time setup:
+//   1. Cloudflare dashboard → R2 → Create bucket (any name, e.g.
+//      "neshs-portal-files") → Settings → Public Access → enable it → copy
+//      the r2.dev URL shown (or set up a custom domain instead).
+//   2. Cloudflare → R2 → Manage R2 API Tokens → create a token scoped to
+//      Object Read & Write on that one bucket only. Note the Access Key ID,
+//      Secret Access Key, and your Account ID (shown on the R2 overview
+//      page).
+//   3. Deploy the included r2-presign Supabase Edge Function (see the
+//      separate index.ts file) and set its secrets via the Supabase CLI:
+//        supabase secrets set R2_ACCOUNT_ID=...
+//        supabase secrets set R2_ACCESS_KEY_ID=...
+//        supabase secrets set R2_SECRET_ACCESS_KEY=...
+//        supabase secrets set R2_BUCKET_NAME=neshs-portal-files
+//        supabase secrets set R2_PUBLIC_URL=https://your-r2-public-url
+//        supabase functions deploy r2-presign
+//   4. Set R2_EDGE_FUNCTION_URL below to your deployed function's URL
+//      (Supabase project → Edge Functions → r2-presign → copy the URL).
+//   R2's secret key NEVER goes in this file or anywhere in the browser —
+//   only the Edge Function (running on Supabase's servers) holds it.
+//
+// Supabase Storage fallback setup (also used if R2 isn't configured at all):
+//   1. Storage → New Bucket → name it exactly "portal-files" → toggle
+//      "Public bucket" on (this only allows READING/downloading files
+//      without extra auth plumbing — it does NOT allow uploads on its own).
+//   2. Storage → portal-files bucket → Policies tab → New Policy → run this
+//      in the SQL editor instead (faster than the policy UI):
+//        create policy "public insert" on storage.objects
+//          for insert to public with check (bucket_id = 'portal-files');
+//        create policy "public update" on storage.objects
+//          for update to public using (bucket_id = 'portal-files');
+//        create policy "public delete" on storage.objects
+//          for delete to public using (bucket_id = 'portal-files');
+//      Without step 2, every upload fails with "new row violates row-level
+//      security policy" — a public bucket alone is NOT enough, since RLS on
+//      storage.objects blocks all writes by default until explicitly opened.
+const R2_EDGE_FUNCTION_URL = 'YOUR_R2_PRESIGN_EDGE_FUNCTION_URL'; // e.g. https://xxxx.supabase.co/functions/v1/r2-presign
+const r2Configured = R2_EDGE_FUNCTION_URL.startsWith('http');
 const STORAGE_BUCKET = 'portal-files';
+const MAX_UPLOAD_MB = 200;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
-// Uploads a File to Supabase Storage and returns its public URL. Falls back
-// to embedding the file as a base64 data URL (the old behavior) when
-// Supabase isn't configured, so local-only mode keeps working exactly as
-// before — only real deployments with Storage configured get real file
-// hosting; nothing breaks for a Supabase-less setup.
-//
-// IMPORTANT: falling back to base64 here silently reintroduces the exact
-// "uploads vanish" bug this was built to fix (see STORAGE_BUCKET setup
-// comment above) — a missing/misconfigured bucket must never fail quietly.
-// storageUploadFailed is exported via a mutable flag so the UI can show a
-// clear, specific warning instead of a swallowed console.warn.
+// Uploads a File, trying R2 → Supabase Storage → base64, in that order, and
+// returns whatever URL the successful tier produces. storageUploadFailed is
+// a mutable module-level flag (mirrored into React state by the caller) so
+// the UI can show a clear, specific warning instead of a swallowed
+// console.warn — silently falling all the way back to base64 would
+// reintroduce the exact "uploads vanish" bug this exists to prevent.
 let storageUploadFailed = null; // null = no failure seen yet; otherwise the error message
+
+const uploadToR2 = async (file, pathPrefix) => {
+  const presignRes = await fetch(R2_EDGE_FUNCTION_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ pathPrefix, fileName: file.name, fileSize: file.size, contentType: file.type })
+  });
+  if (!presignRes.ok) {
+    const body = await presignRes.json().catch(() => ({}));
+    throw new Error(body.error || `R2 presign request failed (${presignRes.status})`);
+  }
+  const { uploadUrl, publicUrl } = await presignRes.json();
+  const putRes = await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } });
+  if (!putRes.ok) throw new Error(`R2 upload failed (${putRes.status})`);
+  return publicUrl;
+};
+
+const uploadToSupabaseStorage = async (file, pathPrefix) => {
+  const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+  const path = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { cacheControl: '3600', upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+};
+
 const uploadFileToStorage = async (file, pathPrefix) => {
+  // A large file (video, deck) that's too big to comfortably embed is ALSO
+  // too big to safely fall back to base64 if every real storage tier fails —
+  // that would try to hold a 100+MB string in memory and in the shared JSON
+  // blob, the exact failure mode this whole migration exists to avoid.
+  // Refuse outright instead, with a clear reason.
+  if (!r2Configured && !supabaseConfigured && file.size > MAX_UPLOAD_BYTES) {
+    storageUploadFailed = `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(0)}MB, over the ${MAX_UPLOAD_MB}MB limit for the fallback storage mode currently active. Configure R2 or Supabase Storage to allow larger files.`;
+    throw new Error(storageUploadFailed);
+  }
+
+  if (r2Configured) {
+    try {
+      const url = await uploadToR2(file, pathPrefix);
+      storageUploadFailed = null;
+      return url;
+    } catch (err) {
+      warnFallbackOnce('R2 upload', err);
+      storageUploadFailed = `R2 upload failed (${err?.message || 'unknown error'}) — check the r2-presign Edge Function is deployed with valid R2 secrets. Falling back to ${supabaseConfigured ? 'Supabase Storage' : 'a mode that WILL cause files to disappear'}.`;
+      if (!supabaseConfigured) {
+        if (file.size > MAX_UPLOAD_BYTES) throw err;
+        return fileToDataURL(file);
+      }
+      // fall through to Supabase Storage below
+    }
+  }
+
   if (!supabaseConfigured) return fileToDataURL(file);
+
+  if (file.size > MAX_UPLOAD_BYTES) {
+    storageUploadFailed = `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(0)}MB, over the ${MAX_UPLOAD_MB}MB limit. Raise the file size limit in Supabase (Settings → Storage, and the portal-files bucket's own limit), or configure R2 for larger files.`;
+    throw new Error(storageUploadFailed);
+  }
   try {
-    const safeName = file.name.replace(/[^\w.\-]+/g, '_');
-    const path = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
-    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { cacheControl: '3600', upsert: false });
-    if (error) throw error;
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    const url = await uploadToSupabaseStorage(file, pathPrefix);
     storageUploadFailed = null;
-    return data.publicUrl;
+    return url;
   } catch (err) {
-    const isMissingBucket = /bucket not found/i.test(err?.message || '');
+    const msg = err?.message || '';
+    const isMissingBucket = /bucket not found/i.test(msg);
+    const isRlsBlocked = /row-level security/i.test(msg);
+    const isTooLarge = /exceeded the maximum allowed size/i.test(msg);
     storageUploadFailed = isMissingBucket
       ? `The "${STORAGE_BUCKET}" Storage bucket doesn't exist yet in Supabase. Files are falling back to a mode that WILL cause them to disappear. Create the bucket (Storage → New bucket → name it "${STORAGE_BUCKET}" → make it public) to fix this.`
-      : `File uploads are failing (${err?.message || 'unknown Storage error'}) and falling back to a mode that WILL cause them to disappear.`;
+      : isRlsBlocked
+      ? `The "${STORAGE_BUCKET}" bucket exists but has no upload policy, so uploads are blocked and falling back to a mode that WILL cause them to disappear. In the Supabase SQL editor, run: create policy "public insert" on storage.objects for insert to public with check (bucket_id = '${STORAGE_BUCKET}');`
+      : isTooLarge
+      ? `"${file.name}" was rejected by Supabase for being too large. Raise BOTH the project-wide Global file size limit (Settings → Storage) and the portal-files bucket's own file size limit — the lower one always wins. Configure R2 instead for a simpler fix.`
+      : `File uploads are failing (${msg || 'unknown Storage error'}) and falling back to a mode that WILL cause them to disappear.`;
     warnFallbackOnce('storage upload', err);
+    if (isTooLarge) {
+      // Same reasoning as the pre-flight check above: don't let a Storage
+      // rejection for size fall back to base64 — that would try to embed the
+      // same too-large file as a giant string instead of just failing clearly.
+      throw err;
+    }
     // Fall back to embedding this one file as base64 rather than losing the
     // upload entirely — large files will still risk hitting the same size
     // limit this was built to avoid, but a small image/doc will go through
@@ -461,11 +573,13 @@ export default function App() {
     try {
       await handleFilesSelectedInner(files, context);
     } catch (err) {
-      // uploadFileToStorage already falls back to base64 on a Storage
-      // failure, so this only fires for a genuinely unexpected error (e.g. a
-      // bug in the handler itself) — surface it rather than letting the
-      // upload silently vanish with no explanation.
-      triggerToast('Upload failed — please try again.');
+      // uploadFileToStorage throws deliberately for an oversized file (and
+      // sets storageWarning with the specific reason via the finally block
+      // below) — don't layer a redundant generic toast on top of that. Only
+      // show this fallback message for a genuinely unexpected error.
+      if (!/exceeded the maximum allowed size|over the .*MB limit/i.test(err?.message || '')) {
+        triggerToast('Upload failed — please try again.');
+      }
     } finally {
       setFilesUploading(false);
       // Pull the module-level flag (set inside uploadFileToStorage) into
@@ -476,8 +590,13 @@ export default function App() {
 
   const handleFilesSelectedInner = async (files, context) => {
     if (context.type === 'announcementMedia') {
-      const media = await Promise.all(files.map(async f => ({ id: nextId(), type: f.type.startsWith('video/') ? 'video' : 'image', name: f.name, url: await uploadFileToStorage(f, 'announcements') })));
-      setAnnModal(prev => ({ ...prev, data: { ...prev.data, media: [...prev.data.media, ...media] } }));
+      // Use allSettled instead of all: one oversized file in a multi-select
+      // must not block the other valid files from uploading too.
+      const results = await Promise.allSettled(files.map(async f => ({ id: nextId(), type: f.type.startsWith('video/') ? 'video' : 'image', name: f.name, url: await uploadFileToStorage(f, 'announcements') })));
+      const media = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+      const failedCount = results.length - media.length;
+      if (media.length) setAnnModal(prev => ({ ...prev, data: { ...prev.data, media: [...prev.data.media, ...media] } }));
+      if (failedCount > 0) triggerToast(`${failedCount} file${failedCount === 1 ? '' : 's'} could not be attached — see the warning below.`);
     } else if (context.type === 'achieverPhotoModal') {
       const url = await uploadFileToStorage(files[0], 'achievers');
       setAchieverModal(prev => ({ ...prev, data: { ...prev.data, photo: url } }));
@@ -489,7 +608,8 @@ export default function App() {
       // The portal derives a clean title for every uploaded file automatically —
       // uploaders never have to type one — and marks each file as processed &
       // ready to view/play/open on-site, pending explicit download authorization.
-      const items = await Promise.all(files.map(async f => ({
+      // Same allSettled reasoning as announcementMedia above.
+      const results = await Promise.allSettled(files.map(async f => ({
         id: nextId(),
         name: f.name,
         title: deriveFileTitle(f.name),
@@ -503,9 +623,19 @@ export default function App() {
         uploadedBy: currentUser?.name || 'Unknown',
         uploadedAt: new Date().toLocaleString()
       })));
-      setProjectFiles(prev => [...items, ...prev]);
-      items.forEach(f => logAction('uploaded file', f.title));
-      triggerToast(items.length > 1 ? `${items.length} files uploaded successfully` : 'File uploaded successfully');
+      const items = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+      const failedCount = results.length - items.length;
+      if (items.length) {
+        setProjectFiles(prev => [...items, ...prev]);
+        items.forEach(f => logAction('uploaded file', f.title));
+      }
+      if (items.length && !failedCount) {
+        triggerToast(items.length > 1 ? `${items.length} files uploaded successfully` : 'File uploaded successfully');
+      } else if (items.length && failedCount) {
+        triggerToast(`${items.length} uploaded, ${failedCount} failed — see the warning below.`);
+      } else if (failedCount) {
+        triggerToast(`Upload failed — see the warning below.`);
+      }
     } else if (context.type === 'projectFileReplace') {
       // Replaces the underlying file content of an existing entry while keeping
       // its title, folder, and authorization state intact — the "rename + replace
@@ -967,7 +1097,20 @@ export default function App() {
   // PERSISTENCE — load once on mount, save (debounced) on change, and (when
   // Supabase is configured) subscribe to realtime changes so uploads made on
   // one device appear on every other device without a manual refresh.
+  //
+  // CRITICAL: Supabase's realtime channel echoes a change back to the SAME
+  // device that made it, not just to other devices. Combined with the
+  // debounced save (500ms) and Postgres's own commit latency, this means a
+  // device can receive an echo of an OLDER save arriving just after it has
+  // already moved on to newer local state (e.g. right after adding a
+  // folder) — and without protection, that stale echo overwrites the newer
+  // state, making the just-created folder/section/etc. vanish. lastAppliedVersionRef
+  // tracks the newest version number this device has produced or received;
+  // any incoming update with a version at or below that is a stale echo and
+  // gets ignored outright.
   // ------------------------------------------------------------
+  const lastAppliedVersionRef = useRef(0);
+
   const applyRemoteData = (data) => {
     // NOTE: accounts and currentUser are handled by their own dedicated
     // local-only effect below — never part of the shared Supabase blob.
@@ -1036,6 +1179,12 @@ export default function App() {
         if (res && res.value && !cancelled) {
           const data = JSON.parse(res.value);
           applyRemoteData(data);
+          // Seed the version guard with whatever this initial load carried,
+          // so the very first realtime message this device receives is
+          // compared against real data instead of the default 0 (which
+          // would make it look "newer" no matter what and skip the guard
+          // entirely on that first message).
+          if (typeof data.__v === 'number') lastAppliedVersionRef.current = data.__v;
           // Default Directory setting drives the initial active section/folder view
           // on login rather than a hardcoded tab.
           if (data.settings && data.settings.defaultDirectory) {
@@ -1074,6 +1223,17 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_data', filter: `id=eq.${STORAGE_KEY}` }, (payload) => {
         const data = payload.new && payload.new.data;
         if (!data) return;
+        // Reject a stale echo: Supabase's realtime channel delivers a
+        // change back to the device that MADE it, not only to other
+        // devices, and delivery order isn't guaranteed relative to this
+        // device's own newer local edits. A version at or below what this
+        // device has already applied is old news — applying it would wipe
+        // out newer local state (this is the bug behind folders/sections
+        // vanishing right after another save, like an upload, fires close
+        // behind them).
+        const incomingVersion = typeof data.__v === 'number' ? data.__v : 0;
+        if (incomingVersion <= lastAppliedVersionRef.current) return;
+        lastAppliedVersionRef.current = incomingVersion;
         applyingRemoteRef.current = true;
         applyRemoteData(data);
         // Release the guard on the next tick, after React has processed the
@@ -1124,7 +1284,17 @@ export default function App() {
     // create a pointless save-receive-save loop between devices.
     if (applyingRemoteRef.current) return;
     const handle = setTimeout(() => {
+      // Every save gets a new version number, strictly greater than any this
+      // device has seen so far (its own last save OR the newest realtime
+      // echo it received) — this is what lets the realtime handler above
+      // recognize and discard a stale echo of an old save instead of using
+      // it to clobber newer local state. Claimed synchronously (not after
+      // the write succeeds) so two saves firing close together can never
+      // compute the same version number and collide.
+      const nextVersion = lastAppliedVersionRef.current + 1;
+      lastAppliedVersionRef.current = nextVersion;
       const payload = {
+        __v: nextVersion,
         sections, folders, announcements, projectFiles, achievers,
         quizzes, quizRecords, notifications, settings, portalTitle,
         author: { name: authorName, title: authorTitle, bio: authorBio, photo: authorPhotoUrl },
