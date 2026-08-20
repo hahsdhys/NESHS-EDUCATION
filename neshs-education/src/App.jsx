@@ -61,6 +61,23 @@ const EMBER_DUSK_PALETTE = {
   gold: '#F2C14E'
 };
 
+// Ember Dawn — the light half of the Ember family: same terracotta accent,
+// warm cream/paper background instead of near-black, like morning light
+// through canvas instead of a campfire at night.
+const EMBER_DAWN_PALETTE = {
+  bg: '#FBF1E8',
+  panel: '#FFFFFF',
+  panelAlt: '#F4E3D4',
+  border: '#EAD0B8',
+  accent: '#E8632B',
+  accentDim: 'rgba(232,99,43,0.12)',
+  highlight: '#FF8A50',
+  text: '#2E1B12',
+  textDim: '#8A6650',
+  danger: '#C7402E',
+  gold: '#B4791E'
+};
+
 // Botanical Paper — warm ivory paper tones with deep moss green, meant to
 // feel like a printed yearbook page rather than a screen.
 const BOTANICAL_PAPER_PALETTE = {
@@ -75,6 +92,23 @@ const BOTANICAL_PAPER_PALETTE = {
   textDim: '#6E6A55',
   danger: '#B5443A',
   gold: '#A9762F'
+};
+
+// Botanical Night — the dark half of the Botanical family: same moss-green
+// accent, deep forest-shadow background instead of ivory paper, like the
+// same page read by lamplight.
+const BOTANICAL_NIGHT_PALETTE = {
+  bg: '#12160F',
+  panel: '#1A2016',
+  panelAlt: '#212A1B',
+  border: 'rgba(140,180,110,0.14)',
+  accent: '#7BB570',
+  accentDim: 'rgba(123,181,112,0.16)',
+  highlight: '#A3D693',
+  text: '#EAF2E3',
+  textDim: '#8FA684',
+  danger: '#E06B5B',
+  gold: '#D4B45E'
 };
 
 // Ink & Newsprint — near-monochrome grayscale with a single crimson accent,
@@ -93,6 +127,23 @@ const INK_NEWSPRINT_PALETTE = {
   gold: '#8C7A3E'
 };
 
+// Ink & Midnight — the dark half of the Ink family: same crimson accent,
+// true charcoal/black instead of newsprint gray, like reading the same
+// masthead under a single desk lamp at night.
+const INK_MIDNIGHT_PALETTE = {
+  bg: '#141414',
+  panel: '#1C1C1C',
+  panelAlt: '#242424',
+  border: 'rgba(255,255,255,0.10)',
+  accent: '#E5484D',
+  accentDim: 'rgba(229,72,77,0.16)',
+  highlight: '#FF6E71',
+  text: '#EDEDEA',
+  textDim: '#8C8C87',
+  danger: '#E5484D',
+  gold: '#C7A968'
+};
+
 // Terminal Amber — a retro CRT monitor: matte black with phosphor-amber
 // text, evoking old computer labs rather than a modern SaaS dashboard.
 const TERMINAL_AMBER_PALETTE = {
@@ -107,6 +158,23 @@ const TERMINAL_AMBER_PALETTE = {
   textDim: '#9C8767',
   danger: '#FF6B4A',
   gold: '#FFB03B'
+};
+
+// Terminal Parchment — the light half of the Terminal family: the same
+// phosphor-amber accent reimagined as amber ink on aged paper, like a
+// printed teletype log instead of a glowing CRT screen.
+const TERMINAL_PARCHMENT_PALETTE = {
+  bg: '#F2E9D8',
+  panel: '#FAF4E8',
+  panelAlt: '#EBDFC5',
+  border: '#D9C79E',
+  accent: '#B5730A',
+  accentDim: 'rgba(181,115,10,0.12)',
+  highlight: '#8F5A08',
+  text: '#2E2410',
+  textDim: '#7A6B47',
+  danger: '#B4432A',
+  gold: '#B5730A'
 };
 
 // Reef Coral — bright lagoon blue-green with coral-pink accents, airy and
@@ -125,18 +193,42 @@ const REEF_CORAL_PALETTE = {
   gold: '#D99A2B'
 };
 
+// Reef Abyss — the dark half of the Reef family: same coral-pink accent,
+// deep ocean-teal background instead of a bright lagoon, like the same
+// tide pool seen at night.
+const REEF_ABYSS_PALETTE = {
+  bg: '#071D1B',
+  panel: '#0D2926',
+  panelAlt: '#123531',
+  border: 'rgba(255,111,145,0.14)',
+  accent: '#FF7FA0',
+  accentDim: 'rgba(255,127,160,0.16)',
+  highlight: '#5FE0C6',
+  text: '#DFFBF5',
+  textDim: '#6FA79E',
+  danger: '#FF6B5C',
+  gold: '#E0B44A'
+};
+
 // Every selectable theme, in the order shown in Settings. id is what's stored
 // in settings.theme; 'dark' and 'light' ids are kept unchanged so existing
-// saved preferences keep working. isLight marks which themes read as a
-// "light mode" for the header's quick Sun/Moon toggle and icon.
+// saved preferences keep working. isLight marks which half of its family a
+// theme is; pairId points at its own light/dark counterpart within the same
+// family, which is what the header's quick Sun/Moon toggle flips between —
+// e.g. on Ember Dusk it flips to Ember Dawn, not to NESHS Dark/Light.
 const THEMES = [
-  { id: 'dark', label: 'NESHS Dark', palette: DARK_PALETTE, isLight: false },
-  { id: 'light', label: 'NESHS Light', palette: LIGHT_PALETTE, isLight: true },
-  { id: 'emberDusk', label: 'Ember Dusk', palette: EMBER_DUSK_PALETTE, isLight: false },
-  { id: 'botanicalPaper', label: 'Botanical Paper', palette: BOTANICAL_PAPER_PALETTE, isLight: true },
-  { id: 'inkNewsprint', label: 'Ink & Newsprint', palette: INK_NEWSPRINT_PALETTE, isLight: true },
-  { id: 'terminalAmber', label: 'Terminal Amber', palette: TERMINAL_AMBER_PALETTE, isLight: false },
-  { id: 'reefCoral', label: 'Reef Coral', palette: REEF_CORAL_PALETTE, isLight: true }
+  { id: 'dark', label: 'NESHS Dark', palette: DARK_PALETTE, isLight: false, pairId: 'light' },
+  { id: 'light', label: 'NESHS Light', palette: LIGHT_PALETTE, isLight: true, pairId: 'dark' },
+  { id: 'emberDusk', label: 'Ember Dusk', palette: EMBER_DUSK_PALETTE, isLight: false, pairId: 'emberDawn' },
+  { id: 'emberDawn', label: 'Ember Dawn', palette: EMBER_DAWN_PALETTE, isLight: true, pairId: 'emberDusk' },
+  { id: 'botanicalPaper', label: 'Botanical Paper', palette: BOTANICAL_PAPER_PALETTE, isLight: true, pairId: 'botanicalNight' },
+  { id: 'botanicalNight', label: 'Botanical Night', palette: BOTANICAL_NIGHT_PALETTE, isLight: false, pairId: 'botanicalPaper' },
+  { id: 'inkNewsprint', label: 'Ink & Newsprint', palette: INK_NEWSPRINT_PALETTE, isLight: true, pairId: 'inkMidnight' },
+  { id: 'inkMidnight', label: 'Ink & Midnight', palette: INK_MIDNIGHT_PALETTE, isLight: false, pairId: 'inkNewsprint' },
+  { id: 'terminalAmber', label: 'Terminal Amber', palette: TERMINAL_AMBER_PALETTE, isLight: false, pairId: 'terminalParchment' },
+  { id: 'terminalParchment', label: 'Terminal Parchment', palette: TERMINAL_PARCHMENT_PALETTE, isLight: true, pairId: 'terminalAmber' },
+  { id: 'reefCoral', label: 'Reef Coral', palette: REEF_CORAL_PALETTE, isLight: true, pairId: 'reefAbyss' },
+  { id: 'reefAbyss', label: 'Reef Abyss', palette: REEF_ABYSS_PALETTE, isLight: false, pairId: 'reefCoral' }
 ];
 const getThemePalette = (themeId) => (THEMES.find(t => t.id === themeId) || THEMES[0]).palette;
 
@@ -614,14 +706,15 @@ export default function App() {
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
   Object.assign(C, getThemePalette(settings.theme || 'dark'));
-  // Quick-toggle button in the header still exists for a fast dark/light
-  // flip; the full picker (all seven themes) lives in Settings.
-  // The header's quick-toggle is a strict two-way switch: it ONLY ever sets
-  // the theme to exactly 'dark' or exactly 'light', and only reflects those
-  // two states in its icon. It intentionally does NOT cycle through the 5
-  // named themes — those are only ever chosen from the Settings picker.
-  const isLightLikeTheme = settings.theme === 'light';
-  const toggleTheme = () => handleSettingChange('theme', isLightLikeTheme ? 'dark' : 'light');
+  // Quick-toggle button in the header flips WITHIN the active theme's own
+  // family (via pairId) — e.g. on Ember Dusk it flips to Ember Dawn, on
+  // Reef Coral it flips to Reef Abyss — rather than always jumping to
+  // NESHS Dark/Light. Every theme now has a light and dark counterpart, so
+  // this always has somewhere meaningful to go. The full picker (all twelve
+  // themes) lives in Settings.
+  const activeThemeMeta = THEMES.find(t => t.id === settings.theme) || THEMES[0];
+  const isLightLikeTheme = activeThemeMeta.isLight;
+  const toggleTheme = () => handleSettingChange('theme', activeThemeMeta.pairId || (isLightLikeTheme ? 'dark' : 'light'));
   const setTheme = (themeId) => handleSettingChange('theme', themeId);
 
   const [toast, setToast] = useState(null);
