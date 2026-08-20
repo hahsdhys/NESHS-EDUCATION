@@ -11,9 +11,11 @@ import {
 } from 'lucide-react';
 
 // ============================================================
-// PALETTES — Fluorescent Blue on Blue Charcoal (dark) / Fluorescent Blue on White (light)
-// plus five named themes selectable from Settings.
+// PALETTES — seven themes selectable from Settings, each with its own
+// distinct mood and use-case rather than variations on one template.
 // ============================================================
+
+// Original NESHS identity — fluorescent cyan on deep blue-charcoal.
 const DARK_PALETTE = {
   bg: '#001619',
   panel: '#031f23',
@@ -28,6 +30,7 @@ const DARK_PALETTE = {
   gold: '#F4D06F'
 };
 
+// Same identity, inverted for daylight use.
 const LIGHT_PALETTE = {
   bg: '#F2FBFC',
   panel: '#FFFFFF',
@@ -42,92 +45,97 @@ const LIGHT_PALETTE = {
   gold: '#9A6E00'
 };
 
-// Dark charcoal fintech dashboard, muted pink glow, glassmorphism cards.
-const DARK_LUXURY_PALETTE = {
-  bg: '#1A171D',
-  panel: '#221E26',
-  panelAlt: '#2B2530',
-  border: 'rgba(255,255,255,0.08)',
-  accent: '#E754A0',
-  accentDim: 'rgba(231,84,160,0.16)',
-  highlight: '#F9A8D4',
-  text: '#F5F3F7',
-  textDim: '#A79FB0',
-  danger: '#FF6B6B',
-  gold: '#E8C07D'
+// Ember Dusk — warm terracotta and burnt-orange on near-black, like a
+// campfire after sunset. Cozy and high-energy rather than corporate.
+const EMBER_DUSK_PALETTE = {
+  bg: '#160F0C',
+  panel: '#1F1512',
+  panelAlt: '#2A1C17',
+  border: 'rgba(255,150,90,0.14)',
+  accent: '#FF7A45',
+  accentDim: 'rgba(255,122,69,0.16)',
+  highlight: '#FFB088',
+  text: '#FBEDE6',
+  textDim: '#B08D7E',
+  danger: '#FF5D5D',
+  gold: '#F2C14E'
 };
 
-// Soft-gray light admin dashboard, forest green highlights, pastel badges.
-const EMERALD_CLEAN_PALETTE = {
-  bg: '#F3F5F7',
+// Botanical Paper — warm ivory paper tones with deep moss green, meant to
+// feel like a printed yearbook page rather than a screen.
+const BOTANICAL_PAPER_PALETTE = {
+  bg: '#F7F3E9',
   panel: '#FFFFFF',
-  panelAlt: '#EAF6F0',
-  border: '#E1E5E9',
-  accent: '#00875A',
-  accentDim: 'rgba(0,135,90,0.10)',
-  highlight: '#00A86B',
-  text: '#1A1F1D',
-  textDim: '#5C6B65',
-  danger: '#D64545',
-  gold: '#B08900'
+  panelAlt: '#EFE9D8',
+  border: '#DED3B8',
+  accent: '#3F6B4A',
+  accentDim: 'rgba(63,107,74,0.12)',
+  highlight: '#5C8A67',
+  text: '#2B2A22',
+  textDim: '#6E6A55',
+  danger: '#B5443A',
+  gold: '#A9762F'
 };
 
-// Light off-white SaaS dashboard, cyan-to-blue gradient energy.
-const ELECTRIC_CYAN_PALETTE = {
-  bg: '#F7FAFC',
+// Ink & Newsprint — near-monochrome grayscale with a single crimson accent,
+// styled after a broadsheet newspaper masthead. Deliberately restrained.
+const INK_NEWSPRINT_PALETTE = {
+  bg: '#EDEDEA',
   panel: '#FFFFFF',
-  panelAlt: '#E8F7FB',
-  border: '#DCEAF0',
-  accent: '#0EA5E9',
-  accentDim: 'rgba(14,165,233,0.10)',
-  highlight: '#22D3EE',
-  text: '#0F2733',
-  textDim: '#5A7684',
-  danger: '#DC4747',
-  gold: '#B8860B'
+  panelAlt: '#E2E2DD',
+  border: '#CBCBC3',
+  accent: '#B3222B',
+  accentDim: 'rgba(179,34,43,0.10)',
+  highlight: '#8A1B22',
+  text: '#1C1C1A',
+  textDim: '#63635C',
+  danger: '#B3222B',
+  gold: '#8C7A3E'
 };
 
-// Pitch-black cyber analytics dashboard, lime green glow accents.
-const DEEP_NEON_GREEN_PALETTE = {
-  bg: '#121212',
-  panel: '#1A1A1A',
-  panelAlt: '#212121',
-  border: 'rgba(163,230,53,0.16)',
-  accent: '#A3E635',
-  accentDim: 'rgba(163,230,53,0.14)',
-  highlight: '#D9F99D',
-  text: '#F2FCE3',
-  textDim: '#8FA37D',
-  danger: '#FF5C5C',
-  gold: '#E5D26A'
+// Terminal Amber — a retro CRT monitor: matte black with phosphor-amber
+// text, evoking old computer labs rather than a modern SaaS dashboard.
+const TERMINAL_AMBER_PALETTE = {
+  bg: '#0C0A08',
+  panel: '#161210',
+  panelAlt: '#1F1A16',
+  border: 'rgba(255,176,59,0.18)',
+  accent: '#FFB03B',
+  accentDim: 'rgba(255,176,59,0.14)',
+  highlight: '#FFD37A',
+  text: '#F5E4C3',
+  textDim: '#9C8767',
+  danger: '#FF6B4A',
+  gold: '#FFB03B'
 };
 
-// Minimalist light dashboard, solid electric blue navigation, white cards.
-const CLASSIC_COBALT_PALETTE = {
-  bg: '#F4F6FA',
+// Reef Coral — bright lagoon blue-green with coral-pink accents, airy and
+// playful, styled after tide pools rather than an admin panel.
+const REEF_CORAL_PALETTE = {
+  bg: '#EAFBF9',
   panel: '#FFFFFF',
-  panelAlt: '#EBF0FC',
-  border: '#DCE3F0',
-  accent: '#1A56DB',
-  accentDim: 'rgba(26,86,219,0.10)',
-  highlight: '#3B82F6',
-  text: '#1F2937',
-  textDim: '#5B6473',
-  danger: '#DC2626',
-  gold: '#A16207'
+  panelAlt: '#D8F5F0',
+  border: '#BEE9E1',
+  accent: '#FF6F91',
+  accentDim: 'rgba(255,111,145,0.12)',
+  highlight: '#12A594',
+  text: '#0B3B37',
+  textDim: '#4F8A82',
+  danger: '#E0483E',
+  gold: '#D99A2B'
 };
 
 // Every selectable theme, in the order shown in Settings. id is what's stored
-// in settings.theme; previously this was just 'dark' | 'light' — those two
-// ids are kept unchanged so existing saved preferences keep working.
+// in settings.theme; 'dark' and 'light' ids are kept unchanged so existing
+// saved preferences keep working.
 const THEMES = [
   { id: 'dark', label: 'NESHS Dark', palette: DARK_PALETTE },
   { id: 'light', label: 'NESHS Light', palette: LIGHT_PALETTE },
-  { id: 'darkLuxury', label: 'Dark Luxury', palette: DARK_LUXURY_PALETTE },
-  { id: 'emeraldClean', label: 'Emerald Clean', palette: EMERALD_CLEAN_PALETTE },
-  { id: 'electricCyan', label: 'Electric Cyan', palette: ELECTRIC_CYAN_PALETTE },
-  { id: 'deepNeonGreen', label: 'Deep Neon Green', palette: DEEP_NEON_GREEN_PALETTE },
-  { id: 'classicCobalt', label: 'Classic Cobalt', palette: CLASSIC_COBALT_PALETTE }
+  { id: 'emberDusk', label: 'Ember Dusk', palette: EMBER_DUSK_PALETTE },
+  { id: 'botanicalPaper', label: 'Botanical Paper', palette: BOTANICAL_PAPER_PALETTE },
+  { id: 'inkNewsprint', label: 'Ink & Newsprint', palette: INK_NEWSPRINT_PALETTE },
+  { id: 'terminalAmber', label: 'Terminal Amber', palette: TERMINAL_AMBER_PALETTE },
+  { id: 'reefCoral', label: 'Reef Coral', palette: REEF_CORAL_PALETTE }
 ];
 const getThemePalette = (themeId) => (THEMES.find(t => t.id === themeId) || THEMES[0]).palette;
 
@@ -583,7 +591,7 @@ export default function App() {
   Object.assign(C, getThemePalette(settings.theme || 'dark'));
   // Quick-toggle button in the header still exists for a fast dark/light
   // flip; the full picker (all seven themes) lives in Settings.
-  const isLightLikeTheme = ['light', 'emeraldClean', 'electricCyan', 'classicCobalt'].includes(settings.theme);
+  const isLightLikeTheme = ['light', 'botanicalPaper', 'inkNewsprint', 'reefCoral'].includes(settings.theme);
   const toggleTheme = () => handleSettingChange('theme', isLightLikeTheme ? 'dark' : 'light');
   const setTheme = (themeId) => handleSettingChange('theme', themeId);
 
@@ -2015,8 +2023,8 @@ export default function App() {
               </p>
             </div>
 
-            <button onClick={() => setIsSettingsOpen(true)} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title="Change theme">
-              <Palette className="w-4 h-4" />
+            <button onClick={toggleTheme} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={isLightLikeTheme ? 'Switch to dark mode' : 'Switch to light mode'}>
+              {isLightLikeTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </button>
             <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }} title="Settings & Privacy">
               <Settings className="w-4 h-4" />
