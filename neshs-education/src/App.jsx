@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
@@ -617,19 +616,12 @@ export default function App() {
   Object.assign(C, getThemePalette(settings.theme || 'dark'));
   // Quick-toggle button in the header still exists for a fast dark/light
   // flip; the full picker (all seven themes) lives in Settings.
-  // The header's quick-toggle no longer collapses every theme down to just
-  // 'dark'/'light' (that was silently discarding any of the 5 named themes
-  // the moment it was clicked). It now cycles forward through the full
-  // THEMES list in order, and the Sun/Moon icon reflects whichever theme is
-  // actually active via its own isLight flag — so a custom theme is never
-  // unexpectedly replaced by a default.
-  const activeThemeMeta = THEMES.find(t => t.id === settings.theme) || THEMES[0];
-  const isLightLikeTheme = activeThemeMeta.isLight;
-  const toggleTheme = () => {
-    const idx = THEMES.findIndex(t => t.id === settings.theme);
-    const next = THEMES[(idx + 1) % THEMES.length];
-    handleSettingChange('theme', next.id);
-  };
+  // The header's quick-toggle is a strict two-way switch: it ONLY ever sets
+  // the theme to exactly 'dark' or exactly 'light', and only reflects those
+  // two states in its icon. It intentionally does NOT cycle through the 5
+  // named themes — those are only ever chosen from the Settings picker.
+  const isLightLikeTheme = settings.theme === 'light';
+  const toggleTheme = () => handleSettingChange('theme', isLightLikeTheme ? 'dark' : 'light');
   const setTheme = (themeId) => handleSettingChange('theme', themeId);
 
   const [toast, setToast] = useState(null);
@@ -1681,7 +1673,7 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
-        <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title="Next theme">
+        <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={isLightLikeTheme ? 'Switch to dark mode' : 'Switch to light mode'}>
           {isLightLikeTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
         </button>
         <div className="w-full max-w-md">
@@ -2060,7 +2052,7 @@ export default function App() {
               </p>
             </div>
 
-            <button onClick={toggleTheme} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title="Next theme">
+            <button onClick={toggleTheme} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={isLightLikeTheme ? 'Switch to dark mode' : 'Switch to light mode'}>
               {isLightLikeTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </button>
             <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }} title="Settings & Privacy">
