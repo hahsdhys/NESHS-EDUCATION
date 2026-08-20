@@ -7,11 +7,12 @@ import {
   Plus, Edit, Trash2, Image as ImageIcon, FileText, Upload, ChevronLeft,
   Play, ScanLine, KeyRound, Quote, GraduationCap,
   Settings, ExternalLink, Loader2, Sun, Moon, Eye, EyeOff, Globe,
-  Zap, FolderCog, ChevronDown, Info
+  Zap, FolderCog, ChevronDown, Info, Palette
 } from 'lucide-react';
 
 // ============================================================
 // PALETTES — Fluorescent Blue on Blue Charcoal (dark) / Fluorescent Blue on White (light)
+// plus five named themes selectable from Settings.
 // ============================================================
 const DARK_PALETTE = {
   bg: '#001619',
@@ -40,6 +41,95 @@ const LIGHT_PALETTE = {
   danger: '#C7433F',
   gold: '#9A6E00'
 };
+
+// Dark charcoal fintech dashboard, muted pink glow, glassmorphism cards.
+const DARK_LUXURY_PALETTE = {
+  bg: '#1A171D',
+  panel: '#221E26',
+  panelAlt: '#2B2530',
+  border: 'rgba(255,255,255,0.08)',
+  accent: '#E754A0',
+  accentDim: 'rgba(231,84,160,0.16)',
+  highlight: '#F9A8D4',
+  text: '#F5F3F7',
+  textDim: '#A79FB0',
+  danger: '#FF6B6B',
+  gold: '#E8C07D'
+};
+
+// Soft-gray light admin dashboard, forest green highlights, pastel badges.
+const EMERALD_CLEAN_PALETTE = {
+  bg: '#F3F5F7',
+  panel: '#FFFFFF',
+  panelAlt: '#EAF6F0',
+  border: '#E1E5E9',
+  accent: '#00875A',
+  accentDim: 'rgba(0,135,90,0.10)',
+  highlight: '#00A86B',
+  text: '#1A1F1D',
+  textDim: '#5C6B65',
+  danger: '#D64545',
+  gold: '#B08900'
+};
+
+// Light off-white SaaS dashboard, cyan-to-blue gradient energy.
+const ELECTRIC_CYAN_PALETTE = {
+  bg: '#F7FAFC',
+  panel: '#FFFFFF',
+  panelAlt: '#E8F7FB',
+  border: '#DCEAF0',
+  accent: '#0EA5E9',
+  accentDim: 'rgba(14,165,233,0.10)',
+  highlight: '#22D3EE',
+  text: '#0F2733',
+  textDim: '#5A7684',
+  danger: '#DC4747',
+  gold: '#B8860B'
+};
+
+// Pitch-black cyber analytics dashboard, lime green glow accents.
+const DEEP_NEON_GREEN_PALETTE = {
+  bg: '#121212',
+  panel: '#1A1A1A',
+  panelAlt: '#212121',
+  border: 'rgba(163,230,53,0.16)',
+  accent: '#A3E635',
+  accentDim: 'rgba(163,230,53,0.14)',
+  highlight: '#D9F99D',
+  text: '#F2FCE3',
+  textDim: '#8FA37D',
+  danger: '#FF5C5C',
+  gold: '#E5D26A'
+};
+
+// Minimalist light dashboard, solid electric blue navigation, white cards.
+const CLASSIC_COBALT_PALETTE = {
+  bg: '#F4F6FA',
+  panel: '#FFFFFF',
+  panelAlt: '#EBF0FC',
+  border: '#DCE3F0',
+  accent: '#1A56DB',
+  accentDim: 'rgba(26,86,219,0.10)',
+  highlight: '#3B82F6',
+  text: '#1F2937',
+  textDim: '#5B6473',
+  danger: '#DC2626',
+  gold: '#A16207'
+};
+
+// Every selectable theme, in the order shown in Settings. id is what's stored
+// in settings.theme; previously this was just 'dark' | 'light' — those two
+// ids are kept unchanged so existing saved preferences keep working.
+const THEMES = [
+  { id: 'dark', label: 'NESHS Dark', palette: DARK_PALETTE },
+  { id: 'light', label: 'NESHS Light', palette: LIGHT_PALETTE },
+  { id: 'darkLuxury', label: 'Dark Luxury', palette: DARK_LUXURY_PALETTE },
+  { id: 'emeraldClean', label: 'Emerald Clean', palette: EMERALD_CLEAN_PALETTE },
+  { id: 'electricCyan', label: 'Electric Cyan', palette: ELECTRIC_CYAN_PALETTE },
+  { id: 'deepNeonGreen', label: 'Deep Neon Green', palette: DEEP_NEON_GREEN_PALETTE },
+  { id: 'classicCobalt', label: 'Classic Cobalt', palette: CLASSIC_COBALT_PALETTE }
+];
+const getThemePalette = (themeId) => (THEMES.find(t => t.id === themeId) || THEMES[0]).palette;
 
 // Mutated in place (not reassigned) so every component that reads C.xxx during
 // render — including the atoms defined below, outside the App component —
@@ -317,6 +407,13 @@ const CORE_MODULES = [
 
 const QUESTION_TYPES = ['Identification', 'Multiple Choice', 'Enumeration', 'True/False'];
 
+// Enumeration questions are graded per listed item, not as one all-or-nothing
+// blob — "Enumerate the 5 stages of X" is worth 5 points, one per correct
+// item recalled, matching how these questions actually work on a real exam.
+// The teacher still authors the key as one comma-separated field for speed;
+// this just splits it into the individual expected items.
+const parseEnumerationKey = (answer) => (answer || '').split(',').map(s => s.trim()).filter(Boolean);
+
 const LANGUAGE_OPTIONS = ['English (US)', 'English (UK)', 'Filipino'];
 
 let idCounter = 1000;
@@ -483,8 +580,12 @@ export default function App() {
 
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
-  Object.assign(C, settings.theme === 'light' ? LIGHT_PALETTE : DARK_PALETTE);
-  const toggleTheme = () => handleSettingChange('theme', settings.theme === 'light' ? 'dark' : 'light');
+  Object.assign(C, getThemePalette(settings.theme || 'dark'));
+  // Quick-toggle button in the header still exists for a fast dark/light
+  // flip; the full picker (all seven themes) lives in Settings.
+  const isLightLikeTheme = ['light', 'emeraldClean', 'electricCyan', 'classicCobalt'].includes(settings.theme);
+  const toggleTheme = () => handleSettingChange('theme', isLightLikeTheme ? 'dark' : 'light');
+  const setTheme = (themeId) => handleSettingChange('theme', themeId);
 
   const [toast, setToast] = useState(null);
   const triggerToast = (message, type = 'info') => {
@@ -1006,14 +1107,47 @@ export default function App() {
     if (q) logAction('deleted quiz', q.title);
   };
   const [lastResult, setLastResult] = useState(null);
+  // A question's point value: Enumeration is worth one point per listed
+  // item (e.g. "Enumerate the 5 stages..." = 5 points), matching how these
+  // are actually scored on a real exam — every other question type is
+  // worth its usual single point.
+  const questionMaxPoints = (item) => item.type === 'Enumeration' ? Math.max(1, parseEnumerationKey(item.answer).length) : 1;
+
   const submitQuiz = () => {
     const quiz = quizzes.find(q => q.id === activeQuizId);
     if (!quiz) { setQuizMode('list'); return; }
     let score = 0;
+    let maxScore = 0;
     quiz.items.forEach((item, idx) => {
-      const given = (takeState.answers[idx] || '').toString().toLowerCase().trim();
-      const correct = (item.answer || '').toString().toLowerCase().trim();
-      if (given && given === correct) score++;
+      maxScore += questionMaxPoints(item);
+      if (item.type === 'Enumeration') {
+        // Per-item, partial-credit scoring: each correctly recalled item is
+        // one point, independent of the others — not all-or-nothing.
+        const correctItems = parseEnumerationKey(item.answer).map(s => s.toLowerCase());
+        const givenList = Array.isArray(takeState.answers[idx]) ? takeState.answers[idx] : [];
+        const givenTrimmed = givenList.map(s => (s || '').toString().toLowerCase().trim());
+        if (item.orderMatters) {
+          // Chronological/sequence questions: item N only counts if it
+          // matches the expected item at that same position.
+          correctItems.forEach((correct, i) => {
+            if (givenTrimmed[i] && givenTrimmed[i] === correct) score++;
+          });
+        } else {
+          // Order-free recall: each given answer can match any not-yet-used
+          // correct item, so listing the same right items in a different
+          // order still earns full credit.
+          const remaining = [...correctItems];
+          givenTrimmed.forEach(g => {
+            if (!g) return;
+            const matchIdx = remaining.indexOf(g);
+            if (matchIdx !== -1) { score++; remaining.splice(matchIdx, 1); }
+          });
+        }
+      } else {
+        const given = (takeState.answers[idx] || '').toString().toLowerCase().trim();
+        const correct = (item.answer || '').toString().toLowerCase().trim();
+        if (given && given === correct) score++;
+      }
     });
     // Student name, grade, and section come from the account/section chosen at
     // login/signup — never re-asked here. Non-student roles (teacher/editor
@@ -1022,10 +1156,10 @@ export default function App() {
       id: nextId(), quizId: quiz.id, studentName: currentUser.name,
       grade: currentUserSection ? currentUserSection.grade : '',
       section: currentUserSection ? currentUserSection.title : '',
-      score, maxScore: quiz.items.length, ts: new Date().toLocaleString()
+      score, maxScore, ts: new Date().toLocaleString()
     }]);
-    logAction('quiz submitted', `${currentUser.name} / ${quiz.title} (${score}/${quiz.items.length})`);
-    setLastResult({ title: quiz.title, score, maxScore: quiz.items.length });
+    logAction('quiz submitted', `${currentUser.name} / ${quiz.title} (${score}/${maxScore})`);
+    setLastResult({ title: quiz.title, score, maxScore });
     setTakeState({ gate: '', started: false, answers: {} });
     setQuizMode('list');
   };
@@ -1502,8 +1636,8 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
-        <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={settings.theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
-          {settings.theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+        <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={isLightLikeTheme ? 'Switch to dark mode' : 'Switch to light mode'}>
+          {isLightLikeTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
         </button>
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
@@ -1881,8 +2015,8 @@ export default function App() {
               </p>
             </div>
 
-            <button onClick={toggleTheme} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={settings.theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
-              {settings.theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            <button onClick={() => setIsSettingsOpen(true)} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title="Change theme">
+              <Palette className="w-4 h-4" />
             </button>
             <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }} title="Settings & Privacy">
               <Settings className="w-4 h-4" />
@@ -2313,8 +2447,21 @@ export default function App() {
                                 <option value="True">True</option>
                                 <option value="False">False</option>
                               </select>
+                            ) : item.type === 'Enumeration' ? (
+                              <div className="space-y-2">
+                                <input placeholder="Answer key, one item per comma (e.g. Solid, Liquid, Gas, Plasma)" value={item.answer} onChange={e => updateQuestion(idx, { answer: e.target.value })} className="w-full text-xs px-2 py-1.5 rounded outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.accent}`, color: C.accent }} />
+                                <div className="flex items-center justify-between gap-3">
+                                  <label className="flex items-center gap-2 text-[11px]" style={{ color: C.textDim }}>
+                                    <input type="checkbox" checked={!!item.orderMatters} onChange={e => updateQuestion(idx, { orderMatters: e.target.checked })} />
+                                    Order matters (e.g. chronological steps)
+                                  </label>
+                                  {parseEnumerationKey(item.answer).length > 0 && (
+                                    <span className="text-[10px] font-bold" style={{ color: C.textDim }}>{parseEnumerationKey(item.answer).length} pt{parseEnumerationKey(item.answer).length === 1 ? '' : 's'}</span>
+                                  )}
+                                </div>
+                              </div>
                             ) : (
-                              <input placeholder={item.type === 'Enumeration' ? 'Answer key (comma-separated)' : 'Answer key (exact text)'} value={item.answer} onChange={e => updateQuestion(idx, { answer: e.target.value })} className="w-full text-xs px-2 py-1.5 rounded outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.accent}`, color: C.accent }} />
+                              <input placeholder="Answer key (exact text)" value={item.answer} onChange={e => updateQuestion(idx, { answer: e.target.value })} className="w-full text-xs px-2 py-1.5 rounded outline-none" style={{ backgroundColor: C.bg, border: `1px solid ${C.accent}`, color: C.accent }} />
                             )}
                             <button onClick={() => removeQuestion(idx)} className="absolute top-3 right-3" style={{ color: C.textDim }}><Trash2 className="w-4 h-4" /></button>
                           </Card>
@@ -2372,6 +2519,26 @@ export default function App() {
                                 {['True', 'False'].map(v => (
                                   <button key={v} onClick={() => setTakeState({ ...takeState, answers: { ...takeState.answers, [idx]: v } })} className="px-4 py-1.5 rounded-lg text-xs font-bold" style={takeState.answers[idx] === v ? { backgroundColor: C.accent, color: C.bg } : { backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }}>{v}</button>
                                 ))}
+                              </div>
+                            ) : item.type === 'Enumeration' ? (
+                              <div className="space-y-2">
+                                {parseEnumerationKey(item.answer).map((_, itemIdx) => {
+                                  const list = Array.isArray(takeState.answers[idx]) ? takeState.answers[idx] : [];
+                                  return (
+                                    <div key={itemIdx} className="flex items-center gap-2">
+                                      <span className="text-xs font-bold w-5 shrink-0 text-right" style={{ color: C.textDim }}>{itemIdx + 1}.</span>
+                                      <Field
+                                        placeholder={`Item ${itemIdx + 1}`}
+                                        value={list[itemIdx] || ''}
+                                        onChange={e => {
+                                          const next = [...list];
+                                          next[itemIdx] = e.target.value;
+                                          setTakeState({ ...takeState, answers: { ...takeState.answers, [idx]: next } });
+                                        }}
+                                      />
+                                    </div>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <Field placeholder="Your answer" value={takeState.answers[idx] || ''} onChange={e => setTakeState({ ...takeState, answers: { ...takeState.answers, [idx]: e.target.value } })} />
@@ -2737,12 +2904,42 @@ export default function App() {
                 desc="Automatically save files when viewed in Project History."
                 control={<Toggle checked={settings.autoDownload} onChange={v => handleSettingChange('autoDownload', v)} reducedMotion={reducedMotion} />}
               />
-              <SettingsRow
-                icon={settings.theme === 'light' ? Sun : Moon}
-                label="Theme"
-                desc="Switch between dark and light appearance."
-                control={<Toggle checked={settings.theme === 'light'} onChange={() => toggleTheme()} reducedMotion={reducedMotion} />}
-              />
+
+              {/* Theme picker — full palette selection, not just a dark/light
+                  toggle. Each swatch previews the theme's actual background,
+                  panel, and accent colors so it's recognizable at a glance. */}
+              <div className="py-3.5" style={{ borderBottom: `1px solid ${C.border}` }}>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: C.accentDim }}>
+                    <Palette className="w-4 h-4" style={{ color: C.accent }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold">Theme</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>Choose the portal's color scheme.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-11">
+                  {THEMES.map(t => {
+                    const active = (settings.theme || 'dark') === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setTheme(t.id)}
+                        className={`text-left p-2.5 rounded-xl ${reducedMotion ? '' : 'transition-all'}`}
+                        style={{ backgroundColor: t.palette.panel, border: active ? `2px solid ${t.palette.accent}` : `1px solid ${t.palette.border}` }}
+                      >
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: t.palette.bg, border: `1px solid ${t.palette.border}` }} />
+                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: t.palette.accent }} />
+                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: t.palette.gold }} />
+                          {active && <CheckCircle className="w-3.5 h-3.5 ml-auto shrink-0" style={{ color: t.palette.accent }} />}
+                        </div>
+                        <p className="text-[10px] font-bold" style={{ color: t.palette.text }}>{t.label}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div className="flex items-start gap-2 mt-5 mb-4 p-3 rounded-xl" style={{ backgroundColor: C.accentDim }}>
                 <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.accent }} />
