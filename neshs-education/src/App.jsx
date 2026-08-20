@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
@@ -127,15 +128,16 @@ const REEF_CORAL_PALETTE = {
 
 // Every selectable theme, in the order shown in Settings. id is what's stored
 // in settings.theme; 'dark' and 'light' ids are kept unchanged so existing
-// saved preferences keep working.
+// saved preferences keep working. isLight marks which themes read as a
+// "light mode" for the header's quick Sun/Moon toggle and icon.
 const THEMES = [
-  { id: 'dark', label: 'NESHS Dark', palette: DARK_PALETTE },
-  { id: 'light', label: 'NESHS Light', palette: LIGHT_PALETTE },
-  { id: 'emberDusk', label: 'Ember Dusk', palette: EMBER_DUSK_PALETTE },
-  { id: 'botanicalPaper', label: 'Botanical Paper', palette: BOTANICAL_PAPER_PALETTE },
-  { id: 'inkNewsprint', label: 'Ink & Newsprint', palette: INK_NEWSPRINT_PALETTE },
-  { id: 'terminalAmber', label: 'Terminal Amber', palette: TERMINAL_AMBER_PALETTE },
-  { id: 'reefCoral', label: 'Reef Coral', palette: REEF_CORAL_PALETTE }
+  { id: 'dark', label: 'NESHS Dark', palette: DARK_PALETTE, isLight: false },
+  { id: 'light', label: 'NESHS Light', palette: LIGHT_PALETTE, isLight: true },
+  { id: 'emberDusk', label: 'Ember Dusk', palette: EMBER_DUSK_PALETTE, isLight: false },
+  { id: 'botanicalPaper', label: 'Botanical Paper', palette: BOTANICAL_PAPER_PALETTE, isLight: true },
+  { id: 'inkNewsprint', label: 'Ink & Newsprint', palette: INK_NEWSPRINT_PALETTE, isLight: true },
+  { id: 'terminalAmber', label: 'Terminal Amber', palette: TERMINAL_AMBER_PALETTE, isLight: false },
+  { id: 'reefCoral', label: 'Reef Coral', palette: REEF_CORAL_PALETTE, isLight: true }
 ];
 const getThemePalette = (themeId) => (THEMES.find(t => t.id === themeId) || THEMES[0]).palette;
 
@@ -427,6 +429,30 @@ const LANGUAGE_OPTIONS = ['English (US)', 'English (UK)', 'Filipino'];
 let idCounter = 1000;
 const nextId = () => ++idCounter;
 
+// Blends a theme color with alpha transparency, for surfaces (like the
+// sticky header) that need to sit translucently over content behind them.
+// Handles both '#rrggbb' theme colors and an already-rgba() string (some
+// palette tokens, like accentDim/border, are defined as rgba literals).
+const withAlpha = (color, alpha) => {
+  if (!color) return color;
+  if (color.startsWith('#')) {
+    const hex = color.slice(1);
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  // Already rgba(...)/rgb(...) — swap in the requested alpha rather than
+  // trying to re-parse arbitrary CSS color syntax.
+  const match = color.match(/rgba?\(([^)]+)\)/);
+  if (match) {
+    const parts = match[1].split(',').map(s => s.trim());
+    const [r, g, b] = parts;
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  return color;
+};
+
 const fileToDataURL = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(reader.result);
@@ -591,8 +617,19 @@ export default function App() {
   Object.assign(C, getThemePalette(settings.theme || 'dark'));
   // Quick-toggle button in the header still exists for a fast dark/light
   // flip; the full picker (all seven themes) lives in Settings.
-  const isLightLikeTheme = ['light', 'botanicalPaper', 'inkNewsprint', 'reefCoral'].includes(settings.theme);
-  const toggleTheme = () => handleSettingChange('theme', isLightLikeTheme ? 'dark' : 'light');
+  // The header's quick-toggle no longer collapses every theme down to just
+  // 'dark'/'light' (that was silently discarding any of the 5 named themes
+  // the moment it was clicked). It now cycles forward through the full
+  // THEMES list in order, and the Sun/Moon icon reflects whichever theme is
+  // actually active via its own isLight flag — so a custom theme is never
+  // unexpectedly replaced by a default.
+  const activeThemeMeta = THEMES.find(t => t.id === settings.theme) || THEMES[0];
+  const isLightLikeTheme = activeThemeMeta.isLight;
+  const toggleTheme = () => {
+    const idx = THEMES.findIndex(t => t.id === settings.theme);
+    const next = THEMES[(idx + 1) % THEMES.length];
+    handleSettingChange('theme', next.id);
+  };
   const setTheme = (themeId) => handleSettingChange('theme', themeId);
 
   const [toast, setToast] = useState(null);
@@ -1644,7 +1681,7 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
-        <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={isLightLikeTheme ? 'Switch to dark mode' : 'Switch to light mode'}>
+        <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title="Next theme">
           {isLightLikeTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
         </button>
         <div className="w-full max-w-md">
@@ -1936,7 +1973,7 @@ export default function App() {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 px-6 py-4" style={{ backgroundColor: 'rgba(3,31,35,0.9)', borderBottom: `1px solid ${C.border}`, backdropFilter: 'blur(8px)' }}>
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 px-6 py-4" style={{ backgroundColor: withAlpha(C.panel, 0.9), borderBottom: `1px solid ${C.border}`, backdropFilter: 'blur(8px)' }}>
           <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => setMobileNavOpen(!mobileNavOpen)} className="md:hidden" style={{ color: C.textDim }}><Menu className="w-5 h-5" /></button>
             {/* Reopen button — only shown once the sidebar has been closed on desktop. */}
@@ -2023,7 +2060,7 @@ export default function App() {
               </p>
             </div>
 
-            <button onClick={toggleTheme} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={isLightLikeTheme ? 'Switch to dark mode' : 'Switch to light mode'}>
+            <button onClick={toggleTheme} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title="Next theme">
               {isLightLikeTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </button>
             <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }} title="Settings & Privacy">
