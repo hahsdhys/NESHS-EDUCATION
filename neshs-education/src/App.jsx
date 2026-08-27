@@ -396,8 +396,9 @@ const persistence = supabaseConfigured
 //      Without step 2, every upload fails with "new row violates row-level
 //      security policy" — a public bucket alone is NOT enough, since RLS on
 //      storage.objects blocks all writes by default until explicitly opened.
-const R2_EDGE_FUNCTION_URL = 'YOUR_R2_PRESIGN_EDGE_FUNCTION_URL'; // e.g. https://xxxx.supabase.co/functions/v1/r2-presign
-const r2Configured = R2_EDGE_FUNCTION_URL.startsWith('http');
+// LUMA (Line 399):
+const R2_EDGE_FUNCTION_URL = '/api/upload';
+const r2Configured = Boolean(R2_EDGE_FUNCTION_URL);
 const STORAGE_BUCKET = 'portal-files';
 const MAX_UPLOAD_MB = 200;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
