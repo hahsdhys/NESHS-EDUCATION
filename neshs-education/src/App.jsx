@@ -360,7 +360,7 @@ const persistence = supabaseConfigured
 //      never for a file large enough that embedding it would be harmful
 //      (see MAX_UPLOAD_BYTES below).
 //
-// R2 + Edge Function one-time setup:
+// R2 + Next.js API route one-time setup:
 //   1. Cloudflare dashboard → R2 → Create bucket (any name, e.g.
 //      "neshs-portal-files") → Settings → Public Access → enable it → copy
 //      the r2.dev URL shown (or set up a custom domain instead).
@@ -368,20 +368,20 @@ const persistence = supabaseConfigured
 //      Object Read & Write on that one bucket only. Note the Access Key ID,
 //      Secret Access Key, and your Account ID (shown on the R2 overview
 //      page).
-//   3. Deploy the included r2-presign Supabase Edge Function (see the
-//      separate index.ts file) and set its secrets via the Supabase CLI:
-//        supabase secrets set R2_ACCOUNT_ID=...
-//        supabase secrets set R2_ACCESS_KEY_ID=...
-//        supabase secrets set R2_SECRET_ACCESS_KEY=...
-//        supabase secrets set R2_BUCKET_NAME=neshs-portal-files
-//        supabase secrets set R2_PUBLIC_URL=https://your-r2-public-url
-//        supabase functions deploy r2-presign
-//   4. Set R2_EDGE_FUNCTION_URL below to your deployed function's URL
-//      (Supabase project → Edge Functions → r2-presign → copy the URL).
+//   3. In your Next.js project, run: npm install @aws-sdk/client-s3
+//   4. Add /pages/api/upload.js (or /app/api/upload/route.js for the App
+//      Router — see the separate file provided) and set these environment
+//      variables in Vercel (Project → Settings → Environment Variables):
+//        R2_ACCOUNT_ID=...
+//        R2_ACCESS_KEY_ID=...
+//        R2_SECRET_ACCESS_KEY=...
+//        R2_BUCKET_NAME=neshs-portal-files
+//        NEXT_PUBLIC_R2_PUBLIC_URL=https://your-r2-public-url
 //   R2's secret key NEVER goes in this file or anywhere in the browser —
-//   only the Edge Function (running on Supabase's servers) holds it.
+//   only the API route (running server-side on Vercel) holds it.
 //
-// Supabase Storage fallback setup (also used if R2 isn't configured at all):
+// Supabase Storage fallback setup (also used if the API route isn't
+// reachable, e.g. during local static preview with no server):
 //   1. Storage → New Bucket → name it exactly "portal-files" → toggle
 //      "Public bucket" on (this only allows READING/downloading files
 //      without extra auth plumbing — it does NOT allow uploads on its own).
@@ -396,34 +396,50 @@ const persistence = supabaseConfigured
 //      Without step 2, every upload fails with "new row violates row-level
 //      security policy" — a public bucket alone is NOT enough, since RLS on
 //      storage.objects blocks all writes by default until explicitly opened.
-// LUMA (Line 399):
-const R2_EDGE_FUNCTION_URL = '/api/upload';
-const r2Configured = Boolean(R2_EDGE_FUNCTION_URL);
+const UPLOAD_API_URL = '/api/upload';
+// r2Configured reflects whether the API route actually exists and works —
+// NOT a hardcoded true. Hardcoding this would make every upload try to hit
+// /api/upload unconditionally with no way to detect a missing/broken route
+// (e.g. R2 env vars not set on Vercel yet), which silently breaks every
+// upload with no fallback. Instead this flips to false automatically the
+// first time a real call to the route fails, so the Supabase/base64
+// fallback chain below still protects against a half-finished deployment.
+let r2Configured = true;
 const STORAGE_BUCKET = 'portal-files';
 const MAX_UPLOAD_MB = 200;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
-// Uploads a File, trying R2 → Supabase Storage → base64, in that order, and
-// returns whatever URL the successful tier produces. storageUploadFailed is
-// a mutable module-level flag (mirrored into React state by the caller) so
-// the UI can show a clear, specific warning instead of a swallowed
-// console.warn — silently falling all the way back to base64 would
-// reintroduce the exact "uploads vanish" bug this exists to prevent.
+// Uploads a File, trying R2 (via /api/upload) → Supabase Storage → base64,
+// in that order, and returns whatever URL the successful tier produces.
+// storageUploadFailed is a mutable module-level flag (mirrored into React
+// state by the caller) so the UI can show a clear, specific warning instead
+// of a swallowed console.warn — silently falling all the way back to base64
+// would reintroduce the exact "uploads vanish" bug this exists to prevent.
 let storageUploadFailed = null; // null = no failure seen yet; otherwise the error message
 
+// Sends the file to Cloudflare R2 via our own Next.js API route, which is
+// the only place R2's secret credentials live. The file is base64-encoded
+// client-side and POSTed as JSON; the route decodes it, uploads to R2 with
+// @aws-sdk/client-s3, and hands back the public URL.
 const uploadToR2 = async (file, pathPrefix) => {
-  const presignRes = await fetch(R2_EDGE_FUNCTION_URL, {
+  const base64Data = await fileToDataURL(file); // "data:<mime>;base64,<data>"
+  const res = await fetch(UPLOAD_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ pathPrefix, fileName: file.name, fileSize: file.size, contentType: file.type })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      pathPrefix,
+      fileName: file.name,
+      fileSize: file.size,
+      contentType: file.type,
+      base64Data
+    })
   });
-  if (!presignRes.ok) {
-    const body = await presignRes.json().catch(() => ({}));
-    throw new Error(body.error || `R2 presign request failed (${presignRes.status})`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `/api/upload request failed (${res.status})`);
   }
-  const { uploadUrl, publicUrl } = await presignRes.json();
-  const putRes = await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } });
-  if (!putRes.ok) throw new Error(`R2 upload failed (${putRes.status})`);
+  const { publicUrl } = await res.json();
+  if (!publicUrl) throw new Error('/api/upload did not return a publicUrl');
   return publicUrl;
 };
 
@@ -441,9 +457,13 @@ const uploadFileToStorage = async (file, pathPrefix) => {
   // too big to safely fall back to base64 if every real storage tier fails —
   // that would try to hold a 100+MB string in memory and in the shared JSON
   // blob, the exact failure mode this whole migration exists to avoid.
-  // Refuse outright instead, with a clear reason.
+  // Refuse outright instead, with a clear reason. This check is NOT removed
+  // for R2 uploads: it protects against the case where /api/upload itself
+  // is unreachable (e.g. not yet deployed) and every tier has failed, not
+  // against R2 uploads that are actually working — a working R2 route
+  // handles files up to MAX_UPLOAD_MB without ever reaching this branch.
   if (!r2Configured && !supabaseConfigured && file.size > MAX_UPLOAD_BYTES) {
-    storageUploadFailed = `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(0)}MB, over the ${MAX_UPLOAD_MB}MB limit for the fallback storage mode currently active. Configure R2 or Supabase Storage to allow larger files.`;
+    storageUploadFailed = `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(0)}MB, over the ${MAX_UPLOAD_MB}MB limit for the fallback storage mode currently active. Configure R2 (/api/upload) or Supabase Storage to allow larger files.`;
     throw new Error(storageUploadFailed);
   }
 
@@ -454,7 +474,13 @@ const uploadFileToStorage = async (file, pathPrefix) => {
       return url;
     } catch (err) {
       warnFallbackOnce('R2 upload', err);
-      storageUploadFailed = `R2 upload failed (${err?.message || 'unknown error'}) — check the r2-presign Edge Function is deployed with valid R2 secrets. Falling back to ${supabaseConfigured ? 'Supabase Storage' : 'a mode that WILL cause files to disappear'}.`;
+      // A real failure here (not just "haven't set env vars yet") means the
+      // API route itself is broken for this session — stop retrying it on
+      // every subsequent upload and fall through to Supabase/base64
+      // immediately instead of adding a failed network round-trip to every
+      // single file.
+      r2Configured = false;
+      storageUploadFailed = `R2 upload failed (${err?.message || 'unknown error'}) — check /api/upload is deployed with valid R2 env vars set in Vercel. Falling back to ${supabaseConfigured ? 'Supabase Storage' : 'a mode that WILL cause files to disappear'}.`;
       if (!supabaseConfigured) {
         if (file.size > MAX_UPLOAD_BYTES) throw err;
         return fileToDataURL(file);
