@@ -55,7 +55,7 @@ export default async function handler(req, res) {
     const command = new PutObjectCommand({
       Bucket: r2BucketName,
       Key: key,
-      ContentType: contentType
+      ContentType: req.body.contentType || 'video/mp4'
     });
 
     const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn: 600 });
