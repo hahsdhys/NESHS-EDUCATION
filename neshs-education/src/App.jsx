@@ -338,191 +338,57 @@ const persistence = supabaseConfigured
 
 // ------------------------------------------------------------
 // File storage — where actual uploaded FILES live (images, videos, documents,
-// ID photos). Previously every file was embedded as base64 text directly
-// inside the single shared JSON row in portal_data, which meant every upload
-// re-sent the ENTIRE app's accumulated files on every save — quickly
-// exceeding request size limits and silently failing (an upload would
-// appear to succeed locally, then vanish once the failed write bounced back
-// through realtime sync). Real files now go to real object storage instead;
-// only a small public URL is stored in the shared data.
-//
-// Three-tier fallback, tried in order for every upload:
-//   1. Cloudflare R2 (via a Supabase Edge Function that hands out a
-//      presigned upload URL) — the primary path once configured, since R2's
-//      free tier (10GB, no per-file cap worth worrying about here) fits
-//      large videos/decks far better than Supabase Storage's free tier
-//      (~1GB total, 50MB/file hard cap that can't be raised without a paid
-//      plan).
-//   2. Supabase Storage directly — used automatically if R2 isn't
-//      configured, or if a specific R2 upload fails.
-//   3. Base64 embedded in the shared data blob — the original behavior,
-//      used only when neither of the above is configured/working, and
-//      never for a file large enough that embedding it would be harmful
-//      (see MAX_UPLOAD_BYTES below).
-//
-// R2 + Next.js API route one-time setup:
-//   1. Cloudflare dashboard → R2 → Create bucket (any name, e.g.
-//      "neshs-portal-files") → Settings → Public Access → enable it → copy
-//      the r2.dev URL shown (or set up a custom domain instead).
-//   2. Cloudflare → R2 → Manage R2 API Tokens → create a token scoped to
-//      Object Read & Write on that one bucket only. Note the Access Key ID,
-//      Secret Access Key, and your Account ID (shown on the R2 overview
-//      page).
-//   3. In your Next.js project, run: npm install @aws-sdk/client-s3
-//   4. Add /pages/api/upload.js (or /app/api/upload/route.js for the App
-//      Router — see the separate file provided) and set these environment
-//      variables in Vercel (Project → Settings → Environment Variables):
-//        R2_ACCOUNT_ID=...
-//        R2_ACCESS_KEY_ID=...
-//        R2_SECRET_ACCESS_KEY=...
-//        R2_BUCKET_NAME=neshs-portal-files
-//        NEXT_PUBLIC_R2_PUBLIC_URL=https://your-r2-public-url
-//   R2's secret key NEVER goes in this file or anywhere in the browser —
-//   only the API route (running server-side on Vercel) holds it.
-//
-// Supabase Storage fallback setup (also used if the API route isn't
-// reachable, e.g. during local static preview with no server):
-//   1. Storage → New Bucket → name it exactly "portal-files" → toggle
-//      "Public bucket" on (this only allows READING/downloading files
-//      without extra auth plumbing — it does NOT allow uploads on its own).
-//   2. Storage → portal-files bucket → Policies tab → New Policy → run this
-//      in the SQL editor instead (faster than the policy UI):
-//        create policy "public insert" on storage.objects
-//          for insert to public with check (bucket_id = 'portal-files');
-//        create policy "public update" on storage.objects
-//          for update to public using (bucket_id = 'portal-files');
-//        create policy "public delete" on storage.objects
-//          for delete to public using (bucket_id = 'portal-files');
-//      Without step 2, every upload fails with "new row violates row-level
-//      security policy" — a public bucket alone is NOT enough, since RLS on
-//      storage.objects blocks all writes by default until explicitly opened.
+// ID photos). The portal stores only a small public URL in its shared data and
+// uploads the actual file bytes directly to Cloudflare R2 via the server-side
+// presign route at /api/upload. There is no Supabase Storage fallback.
 const UPLOAD_API_URL = '/api/upload';
-// r2Configured reflects whether the API route actually exists and works —
-// NOT a hardcoded true. Hardcoding this would make every upload try to hit
-// /api/upload unconditionally with no way to detect a missing/broken route
-// (e.g. R2 env vars not set on Vercel yet), which silently breaks every
-// upload with no fallback. Instead this flips to false automatically the
-// first time a real call to the route fails, so the Supabase/base64
-// fallback chain below still protects against a half-finished deployment.
-let r2Configured = true;
-const STORAGE_BUCKET = 'portal-files';
-const MAX_UPLOAD_MB = 200;
-const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+let storageUploadFailed = null;
 
-// Uploads a File, trying R2 (via /api/upload) → Supabase Storage → base64,
-// in that order, and returns whatever URL the successful tier produces.
-// storageUploadFailed is a mutable module-level flag (mirrored into React
-// state by the caller) so the UI can show a clear, specific warning instead
-// of a swallowed console.warn — silently falling all the way back to base64
-// would reintroduce the exact "uploads vanish" bug this exists to prevent.
-let storageUploadFailed = null; // null = no failure seen yet; otherwise the error message
-
-// Sends the file to Cloudflare R2 via our own Next.js API route, which is
-// the only place R2's secret credentials live. The file is base64-encoded
-// client-side and POSTed as JSON; the route decodes it, uploads to R2 with
-// @aws-sdk/client-s3, and hands back the public URL.
 const uploadToR2 = async (file, pathPrefix) => {
-  const base64Data = await fileToDataURL(file); // "data:<mime>;base64,<data>"
-  const res = await fetch(UPLOAD_API_URL, {
+  const presignRes = await fetch(UPLOAD_API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       pathPrefix,
       fileName: file.name,
       fileSize: file.size,
-      contentType: file.type,
-      base64Data
+      contentType: file.type || 'application/octet-stream'
     })
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `/api/upload request failed (${res.status})`);
+
+  if (!presignRes.ok) {
+    const body = await presignRes.json().catch(() => ({}));
+    throw new Error(body.error || `/api/upload request failed (${presignRes.status})`);
   }
-  const { publicUrl } = await res.json();
+
+  const { uploadUrl, publicUrl } = await presignRes.json();
+  if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
   if (!publicUrl) throw new Error('/api/upload did not return a publicUrl');
+
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream'
+    },
+    body: file
+  });
+
+  if (!uploadRes.ok) {
+    const text = await uploadRes.text().catch(() => '');
+    throw new Error(text || `R2 upload failed (${uploadRes.status})`);
+  }
+
   return publicUrl;
 };
 
-const uploadToSupabaseStorage = async (file, pathPrefix) => {
-  const safeName = file.name.replace(/[^\w.\-]+/g, '_');
-  const path = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
-  const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { cacheControl: '3600', upsert: false });
-  if (error) throw error;
-  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
-};
-
 const uploadFileToStorage = async (file, pathPrefix) => {
-  // A large file (video, deck) that's too big to comfortably embed is ALSO
-  // too big to safely fall back to base64 if every real storage tier fails —
-  // that would try to hold a 100+MB string in memory and in the shared JSON
-  // blob, the exact failure mode this whole migration exists to avoid.
-  // Refuse outright instead, with a clear reason. This check is NOT removed
-  // for R2 uploads: it protects against the case where /api/upload itself
-  // is unreachable (e.g. not yet deployed) and every tier has failed, not
-  // against R2 uploads that are actually working — a working R2 route
-  // handles files up to MAX_UPLOAD_MB without ever reaching this branch.
-  if (!r2Configured && !supabaseConfigured && file.size > MAX_UPLOAD_BYTES) {
-    storageUploadFailed = `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(0)}MB, over the ${MAX_UPLOAD_MB}MB limit for the fallback storage mode currently active. Configure R2 (/api/upload) or Supabase Storage to allow larger files.`;
-    throw new Error(storageUploadFailed);
-  }
-
-  if (r2Configured) {
-    try {
-      const url = await uploadToR2(file, pathPrefix);
-      storageUploadFailed = null;
-      return url;
-    } catch (err) {
-      warnFallbackOnce('R2 upload', err);
-      // A real failure here (not just "haven't set env vars yet") means the
-      // API route itself is broken for this session — stop retrying it on
-      // every subsequent upload and fall through to Supabase/base64
-      // immediately instead of adding a failed network round-trip to every
-      // single file.
-      r2Configured = false;
-      storageUploadFailed = `R2 upload failed (${err?.message || 'unknown error'}) — check /api/upload is deployed with valid R2 env vars set in Vercel. Falling back to ${supabaseConfigured ? 'Supabase Storage' : 'a mode that WILL cause files to disappear'}.`;
-      if (!supabaseConfigured) {
-        if (file.size > MAX_UPLOAD_BYTES) throw err;
-        return fileToDataURL(file);
-      }
-      // fall through to Supabase Storage below
-    }
-  }
-
-  if (!supabaseConfigured) return fileToDataURL(file);
-
-  if (file.size > MAX_UPLOAD_BYTES) {
-    storageUploadFailed = `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(0)}MB, over the ${MAX_UPLOAD_MB}MB limit. Raise the file size limit in Supabase (Settings → Storage, and the portal-files bucket's own limit), or configure R2 for larger files.`;
-    throw new Error(storageUploadFailed);
-  }
   try {
-    const url = await uploadToSupabaseStorage(file, pathPrefix);
+    const url = await uploadToR2(file, pathPrefix);
     storageUploadFailed = null;
     return url;
   } catch (err) {
-    const msg = err?.message || '';
-    const isMissingBucket = /bucket not found/i.test(msg);
-    const isRlsBlocked = /row-level security/i.test(msg);
-    const isTooLarge = /exceeded the maximum allowed size/i.test(msg);
-    storageUploadFailed = isMissingBucket
-      ? `The "${STORAGE_BUCKET}" Storage bucket doesn't exist yet in Supabase. Files are falling back to a mode that WILL cause them to disappear. Create the bucket (Storage → New bucket → name it "${STORAGE_BUCKET}" → make it public) to fix this.`
-      : isRlsBlocked
-      ? `The "${STORAGE_BUCKET}" bucket exists but has no upload policy, so uploads are blocked and falling back to a mode that WILL cause them to disappear. In the Supabase SQL editor, run: create policy "public insert" on storage.objects for insert to public with check (bucket_id = '${STORAGE_BUCKET}');`
-      : isTooLarge
-      ? `"${file.name}" was rejected by Supabase for being too large. Raise BOTH the project-wide Global file size limit (Settings → Storage) and the portal-files bucket's own file size limit — the lower one always wins. Configure R2 instead for a simpler fix.`
-      : `File uploads are failing (${msg || 'unknown Storage error'}) and falling back to a mode that WILL cause them to disappear.`;
-    warnFallbackOnce('storage upload', err);
-    if (isTooLarge) {
-      // Same reasoning as the pre-flight check above: don't let a Storage
-      // rejection for size fall back to base64 — that would try to embed the
-      // same too-large file as a giant string instead of just failing clearly.
-      throw err;
-    }
-    // Fall back to embedding this one file as base64 rather than losing the
-    // upload entirely — large files will still risk hitting the same size
-    // limit this was built to avoid, but a small image/doc will go through
-    // fine, and the person isn't left with a silently failed upload.
-    return fileToDataURL(file);
+    storageUploadFailed = err?.message || 'Upload failed.';
+    throw err;
   }
 };
 
