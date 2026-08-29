@@ -256,7 +256,8 @@ const R2_ACCOUNT_ID = '66b793b50344e01915034db1ad4ec6df';
 const R2_ACCESS_KEY_ID = '5539a58fa179aeeeee1da51bca28f514';
 const R2_SECRET_ACCESS_KEY = '3eae28bc2c8d1ee112d3aa871001b00673e927c2ceb50def6b35072a2e99f5e2';
 const R2_BUCKET_NAME = 'neshs-education';
-const NEXT_PUBLIC_R2_PUBLIC_URL = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const R2_PUBLIC_BASE = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const NEXT_PUBLIC_R2_PUBLIC_URL = R2_PUBLIC_BASE;
 const r2Configured = true;
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
 
@@ -367,13 +368,14 @@ const uploadToR2 = async (file, pathPrefix) => {
     throw new Error(body.error || `/api/upload request failed (${presignRes.status})`);
   }
 
-  const { uploadUrl, publicUrl } = await presignRes.json();
+  const { uploadUrl, publicUrl, finalUrl } = await presignRes.json();
+  const resolvedPublicUrl = finalUrl || publicUrl;
   if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
-  if (!publicUrl) throw new Error('/api/upload did not return a publicUrl');
+  if (!resolvedPublicUrl) throw new Error('/api/upload did not return a publicUrl');
 
-  const publicDomain = NEXT_PUBLIC_R2_PUBLIC_URL.replace(/\/$/, '');
-  if (!publicUrl.startsWith(`${publicDomain}/`)) {
-    throw new Error(`R2 upload returned an unexpected URL: ${publicUrl}`);
+  const publicDomain = R2_PUBLIC_BASE.replace(/\/$/, '');
+  if (!resolvedPublicUrl.startsWith(`${publicDomain}/`)) {
+    throw new Error(`R2 upload returned an unexpected URL: ${resolvedPublicUrl}`);
   }
 
   const uploadRes = await fetch(uploadUrl, {
@@ -389,18 +391,19 @@ const uploadToR2 = async (file, pathPrefix) => {
     throw new Error(text || `R2 upload failed (${uploadRes.status})`);
   }
 
-  return publicUrl;
+  return resolvedPublicUrl;
 };
 
 const normalizeR2PublicUrl = (url) => {
   if (typeof url !== 'string') return url;
-  const trimmed = url.trim();
+  const trimmed = url.trim().replace(/pub--/g, 'pub-');
   if (!trimmed) return trimmed;
   if (trimmed.startsWith('blob:')) return trimmed;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed.startsWith(NEXT_PUBLIC_R2_PUBLIC_URL) ? trimmed : trimmed;
+    return trimmed;
   }
-  return `${NEXT_PUBLIC_R2_PUBLIC_URL.replace(/\/$/, '')}/${trimmed.replace(/^\/+/, '')}`;
+  const cleanKey = trimmed.replace(/^\/+/, '').replace(/\/+/g, '/').replace(/-+/g, '-');
+  return `${R2_PUBLIC_BASE}/${cleanKey}`;
 };
 
 const uploadFileToStorage = async (file, pathPrefix) => {
