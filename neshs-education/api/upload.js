@@ -38,7 +38,8 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body || {};
-    const { pathPrefix, fileName, fileSize, contentType } = body;
+    const { pathPrefix, fileName, fileSize } = body;
+    const contentType = body.contentType || 'video/mp4';
 
     if (!pathPrefix || !fileName) {
       return res.status(400).json({ error: 'pathPrefix and fileName are required' });
@@ -54,7 +55,7 @@ export default async function handler(req, res) {
     const command = new PutObjectCommand({
       Bucket: r2BucketName,
       Key: key,
-      ContentType: contentType || 'video/mp4'
+      ContentType: contentType
     });
 
     const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn: 600 });

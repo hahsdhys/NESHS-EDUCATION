@@ -358,7 +358,7 @@ const uploadToR2 = async (file, pathPrefix) => {
       pathPrefix,
       fileName: file.name,
       fileSize: file.size,
-      contentType: file.type || 'application/octet-stream'
+      contentType: file.type || 'video/mp4'
     })
   });
 
@@ -379,7 +379,7 @@ const uploadToR2 = async (file, pathPrefix) => {
   const uploadRes = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {
-      'Content-Type': file.type
+      'Content-Type': file.type || 'video/mp4'
     },
     body: file
   });
