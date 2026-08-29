@@ -252,6 +252,12 @@ const STORAGE_KEY = 'neshs_portal_data_v1';
 // (files, folders, announcements, quizzes, etc.) is the only thing that's
 // shared via Supabase — accounts stay local, uploads stay public.
 const LOCAL_ACCOUNTS_KEY = 'neshs_portal_local_accounts_v1';
+const R2_ACCOUNT_ID = '66b793b50344e01915034db1ad4ec6df';
+const R2_ACCESS_KEY_ID = '5539a58fa179aeeeee1da51bca28f514';
+const R2_SECRET_ACCESS_KEY = '3eae28bc2c8d1ee112d3aa871001b00673e927c2ceb50def6b35072a2e99f5e2';
+const R2_BUCKET_NAME = 'neshs-education';
+const NEXT_PUBLIC_R2_PUBLIC_URL = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const r2Configured = true;
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
 
 // ------------------------------------------------------------
@@ -364,6 +370,11 @@ const uploadToR2 = async (file, pathPrefix) => {
   const { uploadUrl, publicUrl } = await presignRes.json();
   if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
   if (!publicUrl) throw new Error('/api/upload did not return a publicUrl');
+
+  const publicDomain = NEXT_PUBLIC_R2_PUBLIC_URL.replace(/\/$/, '');
+  if (!publicUrl.startsWith(`${publicDomain}/`)) {
+    throw new Error(`R2 upload returned an unexpected URL: ${publicUrl}`);
+  }
 
   const uploadRes = await fetch(uploadUrl, {
     method: 'PUT',
