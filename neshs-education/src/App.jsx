@@ -392,11 +392,22 @@ const uploadToR2 = async (file, pathPrefix) => {
   return publicUrl;
 };
 
+const normalizeR2PublicUrl = (url) => {
+  if (typeof url !== 'string') return url;
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith('blob:')) return trimmed;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed.startsWith(NEXT_PUBLIC_R2_PUBLIC_URL) ? trimmed : trimmed;
+  }
+  return `${NEXT_PUBLIC_R2_PUBLIC_URL.replace(/\/$/, '')}/${trimmed.replace(/^\/+/, '')}`;
+};
+
 const uploadFileToStorage = async (file, pathPrefix) => {
   try {
     const url = await uploadToR2(file, pathPrefix);
     storageUploadFailed = null;
-    return url;
+    return normalizeR2PublicUrl(url);
   } catch (err) {
     storageUploadFailed = err?.message || 'Upload failed.';
     throw err;
@@ -1031,7 +1042,22 @@ export default function App() {
   };
   const saveAnnouncement = () => {
     if (annModal.data.media) cleanupAnnouncementMediaUrls(annModal.data.media.filter(m => m.url && m.url.startsWith('blob:')));
-    const payload = { ...annModal.data, id: annModal.data.id || nextId(), author: currentUser.name, date: new Date().toLocaleDateString() };
+
+    const sanitizedMedia = (annModal.data.media || []).map(item => {
+      const mediaUrl = normalizeR2PublicUrl(item?.url || '');
+      if (mediaUrl.startsWith('blob:')) throw new Error('Cannot save blob URL to database!');
+      console.log('Final URL saved to DB:', mediaUrl);
+      return { ...item, url: mediaUrl };
+    });
+
+    const payload = {
+      ...annModal.data,
+      media: sanitizedMedia,
+      id: annModal.data.id || nextId(),
+      author: currentUser.name,
+      date: new Date().toLocaleDateString()
+    };
+
     setAnnouncements(prev => {
       const exists = prev.some(a => a.id === payload.id);
       return exists ? prev.map(a => a.id === payload.id ? payload : a) : [payload, ...prev];
