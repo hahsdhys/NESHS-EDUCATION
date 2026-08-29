@@ -379,7 +379,7 @@ const uploadToR2 = async (file, pathPrefix) => {
   const uploadRes = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {
-      'Content-Type': file.type || 'application/octet-stream'
+      'Content-Type': file.type
     },
     body: file
   });
@@ -2156,7 +2156,9 @@ export default function App() {
                           <div key={m.id} className="relative aspect-square rounded-xl overflow-hidden cursor-pointer" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }} onClick={() => setLightbox(m)}>
                             {m.type === 'video' ? (
                               <>
-                                <video src={m.url} className="w-full h-full object-cover" muted />
+                                <video className="w-full h-full object-cover" muted controls playsInline preload="metadata">
+                                  <source src={m.url} type="video/mp4" />
+                                </video>
                                 <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,10,12,0.35)' }}>
                                   <Play className="w-6 h-6" style={{ color: C.accent }} />
                                 </div>
@@ -2663,7 +2665,13 @@ export default function App() {
                     <div className="grid grid-cols-4 gap-2 mt-3">
                       {annModal.data.media.map(m => (
                         <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-                          {m.type === 'video' ? <video src={m.url} className="w-full h-full object-cover" muted /> : <img src={m.url} alt={m.name} className="w-full h-full object-cover" />}
+                          {m.type === 'video' ? (
+                            <video className="w-full h-full object-cover" muted controls playsInline preload="metadata">
+                              <source src={m.url} type="video/mp4" />
+                            </video>
+                          ) : (
+                            <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                          )}
                           <button onClick={() => removeAnnouncementMedia(m.id)} className="absolute top-1 right-1 p-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,10,12,0.7)', color: C.danger }}><X className="w-3 h-3" /></button>
                         </div>
                       ))}
@@ -3007,7 +3015,9 @@ export default function App() {
           <button onClick={() => setLightbox(null)} className="absolute top-5 right-5 p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, color: C.text }}><X className="w-5 h-5" /></button>
           <div className="max-w-3xl w-full max-h-[85vh] flex items-center justify-center" onClick={e => e.stopPropagation()}>
             {lightbox.type === 'video' ? (
-              <video src={lightbox.url} controls autoPlay className="max-w-full max-h-[85vh] rounded-xl" />
+              <video controls autoPlay playsInline preload="metadata" className="max-w-full max-h-[85vh] rounded-xl">
+                <source src={lightbox.url} type="video/mp4" />
+              </video>
             ) : (
               <img src={lightbox.url} alt={lightbox.name} className="max-w-full max-h-[85vh] rounded-xl object-contain" />
             )}
@@ -3034,7 +3044,11 @@ export default function App() {
             </div>
             <div className="flex-1 rounded-xl overflow-hidden flex items-center justify-center" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
               {viewerFile.kind === 'Image' && <img src={viewerFile.url} alt={viewerFile.title || viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
-              {viewerFile.kind === 'Video' && <video src={viewerFile.url} controls autoPlay className="max-w-full max-h-[75vh]" />}
+              {viewerFile.kind === 'Video' && (
+                <video controls autoPlay playsInline preload="metadata" className="max-w-full max-h-[75vh]">
+                  <source src={viewerFile.url} type="video/mp4" />
+                </video>
+              )}
               {viewerFile.kind === 'Audio' && <audio src={viewerFile.url} controls className="w-full px-8" />}
               {viewerFile.kind === 'PDF' && <embed src={viewerFile.url} type="application/pdf" className="w-full h-[75vh]" />}
               {!['Image', 'Video', 'Audio', 'PDF'].includes(viewerFile.kind) && (
