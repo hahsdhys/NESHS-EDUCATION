@@ -725,12 +725,41 @@ export default function App() {
 
   const handleFilesSelectedInner = async (files, context) => {
     if (context.type === 'announcementMedia') {
-      // Use allSettled instead of all: one oversized file in a multi-select
-      // must not block the other valid files from uploading too.
-      const results = await Promise.allSettled(files.map(async f => ({ id: nextId(), type: f.type.startsWith('video/') ? 'video' : 'image', name: f.name, url: await uploadFileToStorage(f, 'announcements') })));
+      const previewMedia = files.map(f => {
+        const previewUrl = URL.createObjectURL(f);
+        return {
+          id: nextId(),
+          type: f.type.startsWith('video/') ? 'video' : 'image',
+          name: f.name,
+          url: previewUrl
+        };
+      });
+      setAnnModal(prev => ({ ...prev, data: { ...prev.data, media: [...prev.data.media, ...previewMedia] } }));
+
+      const results = await Promise.allSettled(files.map(async (f, index) => {
+        const uploadedUrl = await uploadFileToStorage(f, 'announcements');
+        const previewItem = previewMedia[index];
+        if (previewItem && previewItem.url.startsWith('blob:')) {
+          revokeObjectUrl(previewItem.url);
+        }
+        return { ...previewItem, url: uploadedUrl };
+      }));
+
       const media = results.filter(r => r.status === 'fulfilled').map(r => r.value);
       const failedCount = results.length - media.length;
-      if (media.length) setAnnModal(prev => ({ ...prev, data: { ...prev.data, media: [...prev.data.media, ...media] } }));
+
+      setAnnModal(prev => {
+        const existing = prev.data.media.filter(m => !previewMedia.some(p => p.id === m.id));
+        return { ...prev, data: { ...prev.data, media: [...existing, ...media] } };
+      });
+
+      previewMedia.forEach(item => {
+        const result = results.find(r => r.status === 'fulfilled' && r.value.id === item.id);
+        if (!result) {
+          revokeObjectUrl(item.url);
+        }
+      });
+
       if (failedCount > 0) triggerToast(`${failedCount} file${failedCount === 1 ? '' : 's'} could not be attached — see the warning below.`);
     } else if (context.type === 'achieverPhotoModal') {
       const url = await uploadFileToStorage(files[0], 'achievers');
@@ -966,7 +995,25 @@ export default function App() {
   const [annModal, setAnnModal] = useState({ open: false, step: 1, data: null });
   const [lightbox, setLightbox] = useState(null); // {type,url,name}
 
-  const startNewAnnouncement = () => setAnnModal({ open: true, step: 1, data: { id: null, title: '', details: '', media: [], folderId: activeFolderId } });
+  const revokeObjectUrl = (url) => {
+    if (url && typeof url === 'string' && url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const cleanupAnnouncementMediaUrls = (mediaList = []) => {
+    mediaList.forEach(m => revokeObjectUrl(m?.url));
+  };
+
+  const closeAnnouncementModal = () => {
+    if (annModal?.data?.media) cleanupAnnouncementMediaUrls(annModal.data.media);
+    setAnnModal({ open: false, step: 1, data: null });
+  };
+
+  const startNewAnnouncement = () => {
+    if (annModal?.data?.media) cleanupAnnouncementMediaUrls(annModal.data.media);
+    setAnnModal({ open: true, step: 1, data: { id: null, title: '', details: '', media: [], folderId: activeFolderId } });
+  };
   const submitAnnouncementTitle = () => {
     if (!annModal.data.title.trim()) return;
     setAnnModal(prev => ({ ...prev, step: 2 }));
@@ -974,10 +1021,16 @@ export default function App() {
   const uploadAnnouncementMedia = () => {
     triggerRealUpload({ type: 'announcementMedia' }, { accept: 'image/*,video/*', multiple: true, label: 'Allow access to your photos & videos to attach to this article.' });
   };
+
   const removeAnnouncementMedia = (mediaId) => {
-    setAnnModal(prev => ({ ...prev, data: { ...prev.data, media: prev.data.media.filter(m => m.id !== mediaId) } }));
+    setAnnModal(prev => {
+      const mediaToRemove = prev.data.media.find(m => m.id === mediaId);
+      if (mediaToRemove) revokeObjectUrl(mediaToRemove.url);
+      return { ...prev, data: { ...prev.data, media: prev.data.media.filter(m => m.id !== mediaId) } };
+    });
   };
   const saveAnnouncement = () => {
+    if (annModal.data.media) cleanupAnnouncementMediaUrls(annModal.data.media.filter(m => m.url && m.url.startsWith('blob:')));
     const payload = { ...annModal.data, id: annModal.data.id || nextId(), author: currentUser.name, date: new Date().toLocaleDateString() };
     setAnnouncements(prev => {
       const exists = prev.some(a => a.id === payload.id);
@@ -985,7 +1038,7 @@ export default function App() {
     });
     logAction(annModal.data.id ? 'edited article' : 'created article', payload.title);
     triggerToast(annModal.data.id ? 'Article updated' : 'Article published');
-    setAnnModal({ open: false, step: 1, data: null });
+    closeAnnouncementModal();
   };
   const deleteAnnouncement = (id) => {
     const a = announcements.find(x => x.id === id);
@@ -2643,7 +2696,7 @@ export default function App() {
           <Card className="w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-extrabold">{annModal.data.id ? 'Edit Article' : 'Create Article/News'}</h3>
-              <button onClick={() => setAnnModal({ open: false, step: 1, data: null })} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+              <button onClick={closeAnnouncementModal} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
             </div>
 
             {annModal.step === 1 && (
