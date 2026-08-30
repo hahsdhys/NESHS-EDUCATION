@@ -17,11 +17,11 @@ const R2_CONFIG = {
   publicUrl: R2_PUBLIC_BASE
 };
 
-const r2AccountId = process.env.R2_ACCOUNT_ID || R2_CONFIG.accountId;
-const r2AccessKeyId = process.env.R2_ACCESS_KEY_ID || R2_CONFIG.accessKeyId;
-const r2SecretAccessKey = process.env.R2_SECRET_ACCESS_KEY || R2_CONFIG.secretAccessKey;
-const r2BucketName = process.env.R2_BUCKET_NAME || R2_CONFIG.bucketName;
-const r2PublicUrl = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL || R2_CONFIG.publicUrl || R2_PUBLIC_BASE).replace(/\/$/, '');
+const r2AccountId = R2_CONFIG.accountId;
+const r2AccessKeyId = R2_CONFIG.accessKeyId;
+const r2SecretAccessKey = R2_CONFIG.secretAccessKey;
+const r2BucketName = R2_CONFIG.bucketName;
+const r2PublicUrl = R2_PUBLIC_BASE;
 
 const r2Client = new S3Client({
   region: 'auto',

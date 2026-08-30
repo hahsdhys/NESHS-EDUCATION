@@ -400,9 +400,9 @@ const normalizeR2PublicUrl = (url) => {
   if (!trimmed) return trimmed;
   if (trimmed.startsWith('blob:')) return trimmed;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
+    return trimmed.replace(/pub--/g, 'pub-');
   }
-  const cleanKey = trimmed.replace(/^\/+/, '').replace(/\/+/g, '/').replace(/-+/g, '-');
+  const cleanKey = trimmed.replace(/^\/+/, '').replace(/\/+/g, '/').replace(/-+/g, '-').replace(/pub--/g, 'pub-');
   return `${R2_PUBLIC_BASE}/${cleanKey}`;
 };
 
@@ -1047,7 +1047,7 @@ export default function App() {
     if (annModal.data.media) cleanupAnnouncementMediaUrls(annModal.data.media.filter(m => m.url && m.url.startsWith('blob:')));
 
     const sanitizedMedia = (annModal.data.media || []).map(item => {
-      const mediaUrl = normalizeR2PublicUrl(item?.url || '');
+      const mediaUrl = String(item?.url || '').replace(/pub--/g, 'pub-');
       if (mediaUrl.startsWith('blob:')) throw new Error('Cannot save blob URL to database!');
       console.log('Final URL saved to DB:', mediaUrl);
       return { ...item, url: mediaUrl };
