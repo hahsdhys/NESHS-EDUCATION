@@ -9,13 +9,19 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
 const R2_PUBLIC_DOMAIN = 'pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
-const R2_PUBLIC_BASE = `https://${R2_PUBLIC_DOMAIN}`;
+const R2_PUBLIC_BASE = `https://${R2_PUBLIC_DOMAIN}`.replace(/\s+/g, '');
 const R2_CONFIG = {
   accountId: '66b793b50344e01915034db1ad4ec6df',
   accessKeyId: '5539a58fa179aeeeee1da51bca28f514',
   secretAccessKey: '3eae28bc2c8d1ee112d3aa871001b00673e927c2ceb50def6b35072a2e99f5e2',
   bucketName: 'neshs-education',
   publicUrl: R2_PUBLIC_BASE
+};
+
+const getCleanR2Url = (key) => {
+  const BASE_DOMAIN = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+  const cleanKey = String(key || '').replace(/^\/+/, '').replace(/\s+/g, '');
+  return `${BASE_DOMAIN}/${cleanKey}`;
 };
 
 const r2AccountId = R2_CONFIG.accountId;
@@ -54,7 +60,7 @@ export default async function handler(req, res) {
     const safeName = String(fileName).replace(/[^\w.\-]+/g, '_');
     const key = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`.replace(/\s+/g, '');
     const cleanKey = key.replace(/^\/+/, '').replace(/\/+/g, '/');
-    const formattedUrl = `https://${R2_PUBLIC_DOMAIN}/${cleanKey}`;
+    const formattedUrl = getCleanR2Url(cleanKey);
     const finalUrl = formattedUrl;
 
     const command = new PutObjectCommand({

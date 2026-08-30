@@ -352,6 +352,12 @@ const persistence = supabaseConfigured
 const UPLOAD_API_URL = '/api/upload';
 let storageUploadFailed = null;
 
+const getCleanR2Url = (key) => {
+  const BASE_DOMAIN = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+  const cleanKey = String(key || '').replace(/^\/+/, '').replace(/\s+/g, '');
+  return `${BASE_DOMAIN}/${cleanKey}`;
+};
+
 const uploadToR2 = async (file, pathPrefix) => {
   const presignRes = await fetch(UPLOAD_API_URL, {
     method: 'POST',
@@ -370,11 +376,11 @@ const uploadToR2 = async (file, pathPrefix) => {
   }
 
   const { uploadUrl, publicUrl, finalUrl, formattedUrl } = await presignRes.json();
-  const resolvedPublicUrl = formattedUrl || finalUrl || publicUrl;
+  const resolvedPublicUrl = getCleanR2Url(formattedUrl || finalUrl || publicUrl);
   if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
   if (!resolvedPublicUrl) throw new Error('/api/upload did not return a publicUrl');
 
-  const publicDomain = R2_PUBLIC_BASE.replace(/\/$/, '');
+  const publicDomain = (R2_PUBLIC_BASE || 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev').replace(/\/$/, '').replace(/\s+/g, '');
   if (!resolvedPublicUrl.startsWith(`${publicDomain}/`)) {
     throw new Error(`R2 upload returned an unexpected URL: ${resolvedPublicUrl}`);
   }
@@ -401,10 +407,9 @@ const normalizeR2PublicUrl = (url) => {
   if (!trimmed) return trimmed;
   if (trimmed.startsWith('blob:')) return trimmed;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
+    return getCleanR2Url(trimmed.replace(/^https:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, ''));
   }
-  const cleanKey = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return `${R2_PUBLIC_BASE}${cleanKey}`;
+  return getCleanR2Url(trimmed);
 };
 
 const uploadFileToStorage = async (file, pathPrefix) => {
@@ -1012,9 +1017,13 @@ export default function App() {
 
   const normalizeVideoSrc = (url) => {
     if (typeof url !== 'string') return url;
-    const trimmed = url.trim();
+    const trimmed = String(url).trim();
     if (!trimmed) return trimmed;
-    return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `${R2_PUBLIC_BASE}${trimmed.startsWith('/') ? trimmed : `/${trimmed}`}`;
+    if (trimmed.startsWith('blob:')) return trimmed;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return getCleanR2Url(trimmed.replace(/^https:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, '').replace(/^http:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, ''));
+    }
+    return getCleanR2Url(trimmed);
   };
 
   const revokeObjectUrl = (url) => {
@@ -1055,9 +1064,9 @@ export default function App() {
     if (annModal.data.media) cleanupAnnouncementMediaUrls(annModal.data.media.filter(m => m.url && m.url.startsWith('blob:')));
 
     const sanitizedMedia = (annModal.data.media || []).map(item => {
-      const formattedUrl = String(item?.formattedUrl || item?.url || '');
-      const mediaUrl = formattedUrl || String(item?.url || '');
-      if (mediaUrl.startsWith('blob:')) throw new Error('Cannot save blob URL to database!');
+      const source = String(item?.formattedUrl || item?.url || '');
+      const mediaUrl = source.startsWith('blob:') ? source : getCleanR2Url(source.replace(/^https:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, '').replace(/^http:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, ''));
+      if (source.startsWith('blob:')) throw new Error('Cannot save blob URL to database!');
       console.log('Final URL saved to DB:', mediaUrl);
       return { ...item, url: mediaUrl, formattedUrl: mediaUrl };
     });
