@@ -262,14 +262,14 @@ const NEXT_PUBLIC_R2_PUBLIC_URL = R2_PUBLIC_BASE;
 const r2Configured = true;
 const sanitizeR2Url = (rawUrl) => {
   if (!rawUrl) return '';
-  
+
   // Kung blob URL o preview URL, huwag gamitin
   if (typeof rawUrl !== 'string' || rawUrl.startsWith('blob:')) {
     return '';
   }
 
   const BASE = R2_PUBLIC_BASE;
-  
+
   // Kung buong R2 URL na, ibalik na agad
   if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
     return rawUrl;
@@ -279,16 +279,7 @@ const sanitizeR2Url = (rawUrl) => {
   const cleanPath = rawUrl.replace(/^\/+/, '');
   return `${BASE}/${cleanPath}`;
 };
-  // Kung buong R2 URL na, ibalik na agad
-  if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
-    return rawUrl;
-  }
 
-  // Lilinisin ang leading slashes para sa path
-  const cleanPath = rawUrl.replace(/^\/+/, '');
-  return `${BASE}/${cleanPath}`;
-};  return `${BASE}/${cleanPath}`;
-};
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
 
 // ------------------------------------------------------------
