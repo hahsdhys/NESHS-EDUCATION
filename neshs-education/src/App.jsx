@@ -256,7 +256,8 @@ const R2_ACCOUNT_ID = '66b793b50344e01915034db1ad4ec6df';
 const R2_ACCESS_KEY_ID = '5539a58fa179aeeeee1da51bca28f514';
 const R2_SECRET_ACCESS_KEY = '3eae28bc2c8d1ee112d3aa871001b00673e927c2ceb50def6b35072a2e99f5e2';
 const R2_BUCKET_NAME = 'neshs-education';
-const R2_PUBLIC_BASE = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const R2_DOMAIN = 'pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const R2_PUBLIC_BASE = `https://${R2_DOMAIN}`;
 const NEXT_PUBLIC_R2_PUBLIC_URL = R2_PUBLIC_BASE;
 const r2Configured = true;
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
@@ -369,7 +370,7 @@ const uploadToR2 = async (file, pathPrefix) => {
   }
 
   const { uploadUrl, publicUrl, finalUrl } = await presignRes.json();
-  const resolvedPublicUrl = finalUrl || publicUrl;
+  const resolvedPublicUrl = (finalUrl || publicUrl || '').replace(/\s+/g, '');
   if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
   if (!resolvedPublicUrl) throw new Error('/api/upload did not return a publicUrl');
 
@@ -396,14 +397,14 @@ const uploadToR2 = async (file, pathPrefix) => {
 
 const normalizeR2PublicUrl = (url) => {
   if (typeof url !== 'string') return url;
-  const trimmed = url.trim().replace(/pub--/g, 'pub-');
+  const trimmed = url.trim().replace(/pub--/g, 'pub-').replace(/\s+/g, '');
   if (!trimmed) return trimmed;
   if (trimmed.startsWith('blob:')) return trimmed;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed.replace(/pub--/g, 'pub-');
+    return trimmed.replace(/pub--/g, 'pub-').replace(/\s+/g, '');
   }
-  const cleanKey = trimmed.replace(/^\/+/, '').replace(/\/+/g, '/').replace(/-+/g, '-').replace(/pub--/g, 'pub-');
-  return `${R2_PUBLIC_BASE}/${cleanKey}`;
+  const cleanKey = trimmed.replace(/^\/+/, '').replace(/\/+/g, '/').replace(/-+/g, '-').replace(/pub--/g, 'pub-').replace(/\s+/g, '');
+  return `https://${R2_DOMAIN}/${cleanKey}`.replace(/\s+/g, '');
 };
 
 const uploadFileToStorage = async (file, pathPrefix) => {
@@ -1009,6 +1010,12 @@ export default function App() {
   const [annModal, setAnnModal] = useState({ open: false, step: 1, data: null });
   const [lightbox, setLightbox] = useState(null); // {type,url,name}
 
+  const normalizeVideoSrc = (url) => {
+    if (typeof url !== 'string') return url;
+    const cleaned = String(url).replace(/pub--/g, 'pub-').replace(/\s+/g, '');
+    return cleaned.startsWith('http') ? cleaned : `https://${R2_DOMAIN}/${cleaned.replace(/^\/+/, '')}`.replace(/\s+/g, '');
+  };
+
   const revokeObjectUrl = (url) => {
     if (url && typeof url === 'string' && url.startsWith('blob:')) {
       URL.revokeObjectURL(url);
@@ -1047,7 +1054,8 @@ export default function App() {
     if (annModal.data.media) cleanupAnnouncementMediaUrls(annModal.data.media.filter(m => m.url && m.url.startsWith('blob:')));
 
     const sanitizedMedia = (annModal.data.media || []).map(item => {
-      const mediaUrl = String(item?.url || '').replace(/pub--/g, 'pub-');
+      const baseUrl = String(item?.url || '');
+      const mediaUrl = baseUrl.replace(/pub--/g, 'pub-').replace(/\s+/g, '');
       if (mediaUrl.startsWith('blob:')) throw new Error('Cannot save blob URL to database!');
       console.log('Final URL saved to DB:', mediaUrl);
       return { ...item, url: mediaUrl };
@@ -2239,7 +2247,7 @@ export default function App() {
                             {m.type === 'video' ? (
                               <>
                                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                                  <source src={m.url} type="video/mp4" />
+                                  <source src={normalizeVideoSrc(m.url)} type="video/mp4" />
                                   Your browser does not support the video tag.
                                 </video>
                                 <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,10,12,0.35)' }}>
@@ -2750,7 +2758,7 @@ export default function App() {
                         <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
                           {m.type === 'video' ? (
                             <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                              <source src={m.url} type="video/mp4" />
+                              <source src={normalizeVideoSrc(m.url)} type="video/mp4" />
                               Your browser does not support the video tag.
                             </video>
                           ) : (
@@ -3100,7 +3108,7 @@ export default function App() {
           <div className="max-w-3xl w-full max-h-[85vh] flex items-center justify-center" onClick={e => e.stopPropagation()}>
             {lightbox.type === 'video' ? (
               <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[85vh] rounded-xl">
-                <source src={lightbox.url} type="video/mp4" />
+                <source src={normalizeVideoSrc(lightbox.url)} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             ) : (
@@ -3131,7 +3139,7 @@ export default function App() {
               {viewerFile.kind === 'Image' && <img src={viewerFile.url} alt={viewerFile.title || viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
               {viewerFile.kind === 'Video' && (
                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[75vh]">
-                  <source src={viewerFile.url} type="video/mp4" />
+                  <source src={normalizeVideoSrc(viewerFile.url)} type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
               )}
