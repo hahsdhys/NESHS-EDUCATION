@@ -256,7 +256,8 @@ const R2_ACCOUNT_ID = '66b793b50344e01915034db1ad4ec6df';
 const R2_ACCESS_KEY_ID = '5539a58fa179aeeeee1da51bca28f514';
 const R2_SECRET_ACCESS_KEY = '3eae28bc2c8d1ee112d3aa871001b00673e927c2ceb50def6b35072a2e99f5e2';
 const R2_BUCKET_NAME = 'neshs-education';
-const R2_PUBLIC_BASE = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const R2_PUBLIC_DOMAIN = 'pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const R2_PUBLIC_BASE = `https://${R2_PUBLIC_DOMAIN}`;
 const NEXT_PUBLIC_R2_PUBLIC_URL = R2_PUBLIC_BASE;
 const r2Configured = true;
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
@@ -368,8 +369,8 @@ const uploadToR2 = async (file, pathPrefix) => {
     throw new Error(body.error || `/api/upload request failed (${presignRes.status})`);
   }
 
-  const { uploadUrl, publicUrl, finalUrl } = await presignRes.json();
-  const resolvedPublicUrl = finalUrl || publicUrl;
+  const { uploadUrl, publicUrl, finalUrl, formattedUrl } = await presignRes.json();
+  const resolvedPublicUrl = formattedUrl || finalUrl || publicUrl;
   if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
   if (!resolvedPublicUrl) throw new Error('/api/upload did not return a publicUrl');
 
@@ -1054,10 +1055,11 @@ export default function App() {
     if (annModal.data.media) cleanupAnnouncementMediaUrls(annModal.data.media.filter(m => m.url && m.url.startsWith('blob:')));
 
     const sanitizedMedia = (annModal.data.media || []).map(item => {
-      const mediaUrl = String(item?.url || '');
+      const formattedUrl = String(item?.formattedUrl || item?.url || '');
+      const mediaUrl = formattedUrl || String(item?.url || '');
       if (mediaUrl.startsWith('blob:')) throw new Error('Cannot save blob URL to database!');
       console.log('Final URL saved to DB:', mediaUrl);
-      return { ...item, url: mediaUrl };
+      return { ...item, url: mediaUrl, formattedUrl: mediaUrl };
     });
 
     const payload = {
