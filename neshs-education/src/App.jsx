@@ -256,14 +256,13 @@ const R2_ACCOUNT_ID = '66b793b50344e01915034db1ad4ec6df';
 const R2_ACCESS_KEY_ID = '5539a58fa179aeeeee1da51bca28f514';
 const R2_SECRET_ACCESS_KEY = '3eae28bc2c8d1ee112d3aa871001b00673e927c2ceb50def6b35072a2e99f5e2';
 const R2_BUCKET_NAME = 'neshs-education';
-const R2_PUBLIC_DOMAIN = 'pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const R2_PUBLIC_DOMAIN = 'pub-020adfa3657b43ca1abad0ba7d60a52.r2.dev';
 const R2_PUBLIC_BASE = `https://${R2_PUBLIC_DOMAIN}`.replace(/\s+/g, '');
 const NEXT_PUBLIC_R2_PUBLIC_URL = R2_PUBLIC_BASE;
 const r2Configured = true;
 const sanitizeR2Url = (rawUrl) => {
   if (!rawUrl) return '';
-  const BASE = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
-
+  const BASE = R2_PUBLIC_BASE;
   let cleanPath = String(rawUrl).trim();
   if (cleanPath.includes('r2.dev/')) {
     cleanPath = cleanPath.split('r2.dev/').pop();
@@ -386,7 +385,7 @@ const uploadToR2 = async (file, pathPrefix) => {
   if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
   if (!resolvedPublicUrl) throw new Error('/api/upload did not return a publicUrl');
 
-  const publicDomain = (R2_PUBLIC_BASE || 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev').replace(/\/$/, '').replace(/\s+/g, '');
+ const publicDomain = (R2_PUBLIC_BASE || 'https://pub-020adfa3657b43ca1abad0ba7d60a52.r2.dev');
   if (!resolvedPublicUrl.startsWith(`${publicDomain}/`)) {
     throw new Error(`R2 upload returned an unexpected URL: ${resolvedPublicUrl}`);
   }
@@ -766,7 +765,7 @@ export default function App() {
         const uploadedUrl = await uploadFileToStorage(f, 'announcements');
         const previewItem = previewMedia[index];
         if (previewItem && previewItem.url.startsWith('blob:')) {
-          revokeObjectUrl(previewItem.url);
+        URL.revokeObjectURL(previewItem.url);
         }
         return { ...previewItem, url: uploadedUrl };
       }));

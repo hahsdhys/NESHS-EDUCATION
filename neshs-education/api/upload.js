@@ -8,7 +8,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
-const R2_PUBLIC_DOMAIN = 'pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const R2_PUBLIC_DOMAIN = 'pub-020adfa3657b43ca1abad0ba7d60a52.r2.dev';
 const R2_PUBLIC_BASE = `https://${R2_PUBLIC_DOMAIN}`.replace(/\s+/g, '');
 const R2_CONFIG = {
   accountId: '66b793b50344e01915034db1ad4ec6df',
@@ -20,7 +20,7 @@ const R2_CONFIG = {
 
 const sanitizeR2Url = (rawUrl) => {
   if (!rawUrl) return '';
-  const BASE = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+const BASE = 'https://pub-020adfa3657b43ca1abad0ba7d60a52.r2.dev';
 
   let cleanPath = String(rawUrl).trim();
   if (cleanPath.includes('r2.dev/')) {
