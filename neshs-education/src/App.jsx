@@ -257,9 +257,21 @@ const R2_ACCESS_KEY_ID = '5539a58fa179aeeeee1da51bca28f514';
 const R2_SECRET_ACCESS_KEY = '3eae28bc2c8d1ee112d3aa871001b00673e927c2ceb50def6b35072a2e99f5e2';
 const R2_BUCKET_NAME = 'neshs-education';
 const R2_PUBLIC_DOMAIN = 'pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
-const R2_PUBLIC_BASE = `https://${R2_PUBLIC_DOMAIN}`;
+const R2_PUBLIC_BASE = `https://${R2_PUBLIC_DOMAIN}`.replace(/\s+/g, '');
 const NEXT_PUBLIC_R2_PUBLIC_URL = R2_PUBLIC_BASE;
 const r2Configured = true;
+const sanitizeR2Url = (rawUrl) => {
+  if (!rawUrl) return '';
+  const BASE = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+
+  let cleanPath = String(rawUrl).trim();
+  if (cleanPath.includes('r2.dev/')) {
+    cleanPath = cleanPath.split('r2.dev/').pop();
+  }
+  cleanPath = cleanPath.replace(/^https?:\/\/[^\/]+\//, '').replace(/^\/+/, '').replace(/\s+/g, '');
+
+  return `${BASE}/${cleanPath}`;
+};
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
 
 // ------------------------------------------------------------
@@ -352,12 +364,6 @@ const persistence = supabaseConfigured
 const UPLOAD_API_URL = '/api/upload';
 let storageUploadFailed = null;
 
-const getCleanR2Url = (key) => {
-  const BASE_DOMAIN = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
-  const cleanKey = String(key || '').replace(/^\/+/, '').replace(/\s+/g, '');
-  return `${BASE_DOMAIN}/${cleanKey}`;
-};
-
 const uploadToR2 = async (file, pathPrefix) => {
   const presignRes = await fetch(UPLOAD_API_URL, {
     method: 'POST',
@@ -376,7 +382,7 @@ const uploadToR2 = async (file, pathPrefix) => {
   }
 
   const { uploadUrl, publicUrl, finalUrl, formattedUrl } = await presignRes.json();
-  const resolvedPublicUrl = getCleanR2Url(formattedUrl || finalUrl || publicUrl);
+  const resolvedPublicUrl = sanitizeR2Url(formattedUrl || finalUrl || publicUrl);
   if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
   if (!resolvedPublicUrl) throw new Error('/api/upload did not return a publicUrl');
 
@@ -407,9 +413,9 @@ const normalizeR2PublicUrl = (url) => {
   if (!trimmed) return trimmed;
   if (trimmed.startsWith('blob:')) return trimmed;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return getCleanR2Url(trimmed.replace(/^https:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, ''));
+    return sanitizeR2Url(trimmed);
   }
-  return getCleanR2Url(trimmed);
+  return sanitizeR2Url(trimmed);
 };
 
 const uploadFileToStorage = async (file, pathPrefix) => {
@@ -1020,10 +1026,7 @@ export default function App() {
     const trimmed = String(url).trim();
     if (!trimmed) return trimmed;
     if (trimmed.startsWith('blob:')) return trimmed;
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return getCleanR2Url(trimmed.replace(/^https:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, '').replace(/^http:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, ''));
-    }
-    return getCleanR2Url(trimmed);
+    return sanitizeR2Url(trimmed);
   };
 
   const revokeObjectUrl = (url) => {
@@ -1065,7 +1068,7 @@ export default function App() {
 
     const sanitizedMedia = (annModal.data.media || []).map(item => {
       const source = String(item?.formattedUrl || item?.url || '');
-      const mediaUrl = source.startsWith('blob:') ? source : getCleanR2Url(source.replace(/^https:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, '').replace(/^http:\/\/pub-020adfa3657b43cab1abad0ba2d60a52\.r2\.dev\//i, ''));
+      const mediaUrl = source.startsWith('blob:') ? source : sanitizeR2Url(source);
       if (source.startsWith('blob:')) throw new Error('Cannot save blob URL to database!');
       console.log('Final URL saved to DB:', mediaUrl);
       return { ...item, url: mediaUrl, formattedUrl: mediaUrl };
@@ -2257,7 +2260,7 @@ export default function App() {
                             {m.type === 'video' ? (
                               <>
                                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                                  <source src={normalizeVideoSrc(m.url)} type="video/mp4" />
+                                  <source src={sanitizeR2Url(m.url)} type="video/mp4" />
                                   Your browser does not support the video tag.
                                 </video>
                                 <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,10,12,0.35)' }}>
@@ -2265,7 +2268,7 @@ export default function App() {
                                 </div>
                               </>
                             ) : (
-                              <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                              <img src={sanitizeR2Url(m.url)} alt={m.name} className="w-full h-full object-cover" />
                             )}
                           </div>
                         ))}
@@ -2768,11 +2771,11 @@ export default function App() {
                         <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
                           {m.type === 'video' ? (
                             <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                              <source src={normalizeVideoSrc(m.url)} type="video/mp4" />
+                              <source src={sanitizeR2Url(m.url)} type="video/mp4" />
                               Your browser does not support the video tag.
                             </video>
                           ) : (
-                            <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                            <img src={sanitizeR2Url(m.url)} alt={m.name} className="w-full h-full object-cover" />
                           )}
                           <button onClick={() => removeAnnouncementMedia(m.id)} className="absolute top-1 right-1 p-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,10,12,0.7)', color: C.danger }}><X className="w-3 h-3" /></button>
                         </div>
@@ -3118,11 +3121,11 @@ export default function App() {
           <div className="max-w-3xl w-full max-h-[85vh] flex items-center justify-center" onClick={e => e.stopPropagation()}>
             {lightbox.type === 'video' ? (
               <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[85vh] rounded-xl">
-                <source src={normalizeVideoSrc(lightbox.url)} type="video/mp4" />
+                <source src={sanitizeR2Url(lightbox.url)} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             ) : (
-              <img src={lightbox.url} alt={lightbox.name} className="max-w-full max-h-[85vh] rounded-xl object-contain" />
+              <img src={sanitizeR2Url(lightbox.url)} alt={lightbox.name} className="max-w-full max-h-[85vh] rounded-xl object-contain" />
             )}
           </div>
         </div>
@@ -3149,7 +3152,7 @@ export default function App() {
               {viewerFile.kind === 'Image' && <img src={viewerFile.url} alt={viewerFile.title || viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
               {viewerFile.kind === 'Video' && (
                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[75vh]">
-                  <source src={normalizeVideoSrc(viewerFile.url)} type="video/mp4" />
+                  <source src={sanitizeR2Url(viewerFile.url)} type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
               )}

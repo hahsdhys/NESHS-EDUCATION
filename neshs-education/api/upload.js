@@ -18,10 +18,17 @@ const R2_CONFIG = {
   publicUrl: R2_PUBLIC_BASE
 };
 
-const getCleanR2Url = (key) => {
-  const BASE_DOMAIN = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
-  const cleanKey = String(key || '').replace(/^\/+/, '').replace(/\s+/g, '');
-  return `${BASE_DOMAIN}/${cleanKey}`;
+const sanitizeR2Url = (rawUrl) => {
+  if (!rawUrl) return '';
+  const BASE = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+
+  let cleanPath = String(rawUrl).trim();
+  if (cleanPath.includes('r2.dev/')) {
+    cleanPath = cleanPath.split('r2.dev/').pop();
+  }
+  cleanPath = cleanPath.replace(/^https?:\/\/[^\/]+\//, '').replace(/^\/+/, '').replace(/\s+/g, '');
+
+  return `${BASE}/${cleanPath}`;
 };
 
 const r2AccountId = R2_CONFIG.accountId;
@@ -60,7 +67,7 @@ export default async function handler(req, res) {
     const safeName = String(fileName).replace(/[^\w.\-]+/g, '_');
     const key = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`.replace(/\s+/g, '');
     const cleanKey = key.replace(/^\/+/, '').replace(/\/+/g, '/');
-    const formattedUrl = getCleanR2Url(cleanKey);
+    const formattedUrl = sanitizeR2Url(cleanKey);
     const finalUrl = formattedUrl;
 
     const command = new PutObjectCommand({
