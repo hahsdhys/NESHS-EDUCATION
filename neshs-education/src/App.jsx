@@ -543,6 +543,30 @@ const SettingsRow = ({ icon: Icon, label, desc, control }) => (
 );
 
 // permission modal -------------------------------------------------
+// Helper para linisin ang lumang sirang URL mula sa Database
+const cleanMediaUrl = (url) => {
+  if (!url || typeof url !== 'string') return '';
+
+  const TARGET_DOMAIN = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+
+  let clean = url;
+  if (clean.includes('blob:')) {
+    clean = clean.split('blob:')[0];
+  }
+
+  if (clean.includes('.r2.dev/')) {
+    const parts = clean.split('.r2.dev/');
+    const key = parts[parts.length - 1].replace(/^\/+/, '');
+    return key ? `${TARGET_DOMAIN}/${key}` : '';
+  }
+
+  if (clean.startsWith('http://') || clean.startsWith('https://')) {
+    return clean;
+  }
+
+  const relativePath = clean.replace(/^\/+/, '');
+  return relativePath ? `${TARGET_DOMAIN}/${relativePath}` : '';
+};
 function PermissionModal({ open, label, onAllow, onDeny }) {
   if (!open) return null;
   return (
