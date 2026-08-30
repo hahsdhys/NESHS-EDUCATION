@@ -8,8 +8,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
-const R2_DOMAIN = 'pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
-const R2_PUBLIC_BASE = `https://${R2_DOMAIN}`;
+const R2_PUBLIC_BASE = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
 const R2_CONFIG = {
   accountId: '66b793b50344e01915034db1ad4ec6df',
   accessKeyId: '5539a58fa179aeeeee1da51bca28f514',
@@ -53,8 +52,8 @@ export default async function handler(req, res) {
 
     const safeName = String(fileName).replace(/[^\w.\-]+/g, '_');
     const key = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
-    const cleanKey = key.replace(/^\/+/, '').replace(/\/+/g, '/').replace(/-+/g, '-').replace(/pub--/g, 'pub-');
-    const finalUrl = `https://${R2_DOMAIN}/${cleanKey.replace(/^\/+/, '')}`.replace(/\s+/g, '');
+    const cleanKey = key.replace(/^\/+/, '').replace(/\/+/g, '/');
+    const finalUrl = `${R2_PUBLIC_BASE}${cleanKey.startsWith('/') ? cleanKey : `/${cleanKey}`}`;
 
     const command = new PutObjectCommand({
       Bucket: r2BucketName,
@@ -64,7 +63,7 @@ export default async function handler(req, res) {
 
     const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn: 600 });
 
-    return res.status(200).json({ uploadUrl, publicUrl: finalUrl, finalUrl, key: cleanKey.replace(/\s+/g, '') });
+    return res.status(200).json({ uploadUrl, publicUrl: finalUrl, finalUrl, key: cleanKey });
   } catch (err) {
     console.error('R2 presign failed:', err);
     return res.status(500).json({ error: err?.message || 'R2 presign failed' });
