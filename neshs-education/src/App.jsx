@@ -547,7 +547,7 @@ const SettingsRow = ({ icon: Icon, label, desc, control }) => (
 const cleanMediaUrl = (url) => {
   if (!url || typeof url !== 'string') return '';
 
-  const TARGET_DOMAIN = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+ const TARGET_DOMAIN = 'https://rough-art-8c28.ecobseducation.workers.dev';
 
   let clean = url;
   if (clean.includes('blob:')) {
