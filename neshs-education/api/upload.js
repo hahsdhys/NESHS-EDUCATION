@@ -1,50 +1,61 @@
 // api/upload.js
 //
-// This endpoint creates a short-lived Cloudflare R2 upload URL and returns the
-// public object URL. The browser then uploads the raw file bytes directly to R2
-// with a PUT request, bypassing the Vercel function body size limits.
+// Plain Vercel serverless function (this project is Vite, not Next.js — no
+// app/ or pages/ folder). Vercel automatically serves any .js file placed
+// directly inside a top-level /api folder at /api/<filename> — this file
+// must live at api/upload.js, as a sibling of src/, public/, package.json
+// (NOT inside src/).
+//
+// This is the SINGLE, ONLY place that builds the public R2 URL for an
+// uploaded file. It returns exactly one field name — publicUrl — and
+// nothing else calls it anything different. If a URL is ever malformed,
+// the fix belongs HERE, not in App.jsx: cleaning/repairing a URL after the
+// fact in many different places (every place it gets rendered) is what
+// caused repeated, hard-to-track breakage before. One source of truth, one
+// field name, done correctly once.
+//
+// ARCHITECTURE: this route does NOT receive the file's bytes. Vercel
+// serverless functions enforce a hard 4.5MB request body limit at the
+// platform level, which cannot be raised by any config. Instead, this
+// route only asks R2 for a short-lived PRESIGNED UPLOAD URL and returns it;
+// the browser then PUTs the actual file bytes directly to that URL,
+// straight to Cloudflare, bypassing this function entirely.
+//
+// Required setup (all in Vercel → Project → Settings → Environment
+// Variables — NEVER hardcoded here or in App.jsx):
+//   R2_ACCOUNT_ID
+//   R2_ACCESS_KEY_ID
+//   R2_SECRET_ACCESS_KEY
+//   R2_BUCKET_NAME
+//   NEXT_PUBLIC_R2_PUBLIC_URL   — just the bare domain, e.g.
+//     https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev
+//     No trailing slash, no path, no repeated "https://" — this exact
+//     string is checked and normalized below regardless, but keeping the
+//     env var itself clean avoids any ambiguity.
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
-const R2_PUBLIC_DOMAIN = 'pub-020adfa3657b43ca1abad0ba7d60a52.r2.dev';
-const R2_PUBLIC_BASE = `https://${R2_PUBLIC_DOMAIN}`.replace(/\s+/g, '');
-const R2_CONFIG = {
-  accountId: '66b793b50344e01915034db1ad4ec6df',
-  accessKeyId: '5539a58fa179aeeeee1da51bca28f514',
-  secretAccessKey: '3eae28bc2c8d1ee112d3aa871001b00673e927c2ceb50def6b35072a2e99f5e2',
-  bucketName: 'neshs-education',
-  publicUrl: R2_PUBLIC_BASE
-};
-
-const sanitizeR2Url = (rawUrl) => {
-  if (!rawUrl) return '';
-const BASE = 'https://pub-020adfa3657b43ca1abad0ba7d60a52.r2.dev';
-
-  let cleanPath = String(rawUrl).trim();
-  if (cleanPath.includes('r2.dev/')) {
-    cleanPath = cleanPath.split('r2.dev/').pop();
-  }
-  cleanPath = cleanPath.replace(/^https?:\/\/[^\/]+\//, '').replace(/^\/+/, '').replace(/\s+/g, '');
-
-  return `${BASE}/${cleanPath}`;
-};
-
-const r2AccountId = R2_CONFIG.accountId;
-const r2AccessKeyId = R2_CONFIG.accessKeyId;
-const r2SecretAccessKey = R2_CONFIG.secretAccessKey;
-const r2BucketName = R2_CONFIG.bucketName;
-const r2PublicUrl = R2_PUBLIC_BASE;
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB — keep in sync with any client-side check in App.jsx
 
 const r2Client = new S3Client({
   region: 'auto',
-  endpoint: `https://${r2AccountId}.r2.cloudflarestorage.com`,
+  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
   credentials: {
-    accessKeyId: r2AccessKeyId,
-    secretAccessKey: r2SecretAccessKey
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY
   }
 });
+
+// Normalizes the configured public base URL exactly once, here, at module
+// load — not scattered as ad-hoc string surgery across the frontend.
+// Strips whitespace and any trailing slash so concatenation with the key
+// below can never produce a double slash or a doubled domain.
+function getPublicBase() {
+  const raw = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL || '').trim();
+  if (!raw) return '';
+  return raw.replace(/\/+$/, '');
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -52,35 +63,45 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = req.body || {};
-    const { pathPrefix, fileName, fileSize } = body;
-    const contentType = body.contentType || 'video/mp4';
+    const { pathPrefix, fileName, fileSize, contentType } = req.body || {};
 
     if (!pathPrefix || !fileName) {
       return res.status(400).json({ error: 'pathPrefix and fileName are required' });
     }
-
     if (typeof fileSize === 'number' && fileSize > MAX_UPLOAD_BYTES) {
       return res.status(413).json({ error: `File exceeds the ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB limit` });
     }
 
+    const publicBase = getPublicBase();
+    if (!publicBase) {
+      return res.status(500).json({ error: 'NEXT_PUBLIC_R2_PUBLIC_URL is not configured on the server' });
+    }
+
+    // Sanitize the filename (strip anything that isn't a safe filename
+    // character) and build a unique key. This key is a plain path segment —
+    // it never contains a scheme or domain, so there is nothing for any
+    // downstream code to accidentally double up.
     const safeName = String(fileName).replace(/[^\w.\-]+/g, '_');
-    const key = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`.replace(/\s+/g, '');
-    const cleanKey = key.replace(/^\/+/, '').replace(/\/+/g, '/');
-    const formattedUrl = sanitizeR2Url(cleanKey);
-    const finalUrl = formattedUrl;
+    const key = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
 
     const command = new PutObjectCommand({
-      Bucket: r2BucketName,
+      Bucket: process.env.R2_BUCKET_NAME,
       Key: key,
-      ContentType: req.body.contentType || 'video/mp4'
+      ContentType: contentType || 'application/octet-stream'
     });
 
+    // 10 minutes is comfortably enough time to complete even a large
+    // video's PUT request without leaving the signed URL valid indefinitely.
     const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn: 600 });
 
-    return res.status(200).json({ uploadUrl, publicUrl: finalUrl, finalUrl, key: cleanKey, formattedUrl });
+    // The ONLY place this string is built. publicBase has no trailing
+    // slash (stripped above), key has no leading slash — so this always
+    // produces exactly one clean join, never a double domain or double slash.
+    const publicUrl = `${publicBase}/${key}`;
+
+    return res.status(200).json({ uploadUrl, publicUrl });
   } catch (err) {
     console.error('R2 presign failed:', err);
-    return res.status(500).json({ error: err?.message || 'R2 presign failed' });
+    return res.status(500).json({ error: err?.message || 'Presign failed' });
   }
 }

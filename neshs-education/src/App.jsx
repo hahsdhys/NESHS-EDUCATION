@@ -252,34 +252,14 @@ const STORAGE_KEY = 'neshs_portal_data_v1';
 // (files, folders, announcements, quizzes, etc.) is the only thing that's
 // shared via Supabase — accounts stay local, uploads stay public.
 const LOCAL_ACCOUNTS_KEY = 'neshs_portal_local_accounts_v1';
-const R2_ACCOUNT_ID = '66b793b50344e01915034db1ad4ec6df';
-const R2_ACCESS_KEY_ID = '5539a58fa179aeeeee1da51bca28f514';
-const R2_SECRET_ACCESS_KEY = '3eae28bc2c8d1ee112d3aa871001b00673e927c2ceb50def6b35072a2e99f5e2';
-const R2_BUCKET_NAME = 'neshs-education';
-const R2_PUBLIC_DOMAIN = 'pub-020adfa3657b43ca1abad0ba7d60a52.r2.dev';
-const R2_PUBLIC_BASE = `https://${R2_PUBLIC_DOMAIN}`.replace(/\s+/g, '');
-const NEXT_PUBLIC_R2_PUBLIC_URL = R2_PUBLIC_BASE;
-const r2Configured = true;
-const sanitizeR2Url = (rawUrl) => {
-  if (!rawUrl) return '';
-
-  // Kung blob URL o preview URL, huwag gamitin
-  if (typeof rawUrl !== 'string' || rawUrl.startsWith('blob:')) {
-    return '';
-  }
-
-  const BASE = R2_PUBLIC_BASE;
-
-  // Kung buong R2 URL na, ibalik na agad
-  if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
-    return rawUrl;
-  }
-
-  // Lilinisin ang leading slashes para sa path
-  const cleanPath = rawUrl.replace(/^\/+/, '');
-  return `${BASE}/${cleanPath}`;
-};
-
+// R2 credentials (account ID, access key, secret key) must NEVER appear in
+// this file — this code ships to every visitor's browser as plain
+// JavaScript, so any secret placed here is fully readable by anyone who
+// views the page source. Those credentials belong ONLY inside
+// api/upload.js, running server-side on Vercel, configured via Vercel's
+// Environment Variables (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+// R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, NEXT_PUBLIC_R2_PUBLIC_URL) — never
+// hardcoded in source, here or anywhere else.
 const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').trim());
 
 // ------------------------------------------------------------
@@ -366,9 +346,15 @@ const persistence = supabaseConfigured
 
 // ------------------------------------------------------------
 // File storage — where actual uploaded FILES live (images, videos, documents,
-// ID photos). The portal stores only a small public URL in its shared data and
-// uploads the actual file bytes directly to Cloudflare R2 via the server-side
-// presign route at /api/upload. There is no Supabase Storage fallback.
+// ID photos). The portal stores only a small public URL in its shared data
+// and uploads the actual file bytes directly to Cloudflare R2 via the
+// server-side presign route at /api/upload. There is no Supabase Storage
+// fallback and NO client-side URL "cleaning" — the API route is the single
+// source of truth for the public URL, and returns it correctly formed the
+// first time. If the URL is ever wrong, the fix belongs in api/upload.js,
+// not here — trying to detect and repair a malformed URL after the fact in
+// many different places (every place it's rendered) is what caused the
+// original bug to keep resurfacing in new forms.
 const UPLOAD_API_URL = '/api/upload';
 let storageUploadFailed = null;
 
@@ -380,7 +366,7 @@ const uploadToR2 = async (file, pathPrefix) => {
       pathPrefix,
       fileName: file.name,
       fileSize: file.size,
-      contentType: file.type || 'video/mp4'
+      contentType: file.type || 'application/octet-stream'
     })
   });
 
@@ -389,21 +375,15 @@ const uploadToR2 = async (file, pathPrefix) => {
     throw new Error(body.error || `/api/upload request failed (${presignRes.status})`);
   }
 
-  const { uploadUrl, publicUrl, finalUrl, formattedUrl } = await presignRes.json();
-  const resolvedPublicUrl = sanitizeR2Url(formattedUrl || finalUrl || publicUrl);
+  // publicUrl is the ONE field name the API route returns — see the
+  // matching api/upload.js, which is the single place that builds it.
+  const { uploadUrl, publicUrl } = await presignRes.json();
   if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
-  if (!resolvedPublicUrl) throw new Error('/api/upload did not return a publicUrl');
-
- const publicDomain = (R2_PUBLIC_BASE || 'https://pub-020adfa3657b43ca1abad0ba7d60a52.r2.dev');
-  if (!resolvedPublicUrl.startsWith(`${publicDomain}/`)) {
-    throw new Error(`R2 upload returned an unexpected URL: ${resolvedPublicUrl}`);
-  }
+  if (!publicUrl) throw new Error('/api/upload did not return a publicUrl');
 
   const uploadRes = await fetch(uploadUrl, {
     method: 'PUT',
-    headers: {
-      'Content-Type': file.type
-    },
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
     body: file
   });
 
@@ -412,25 +392,14 @@ const uploadToR2 = async (file, pathPrefix) => {
     throw new Error(text || `R2 upload failed (${uploadRes.status})`);
   }
 
-  return resolvedPublicUrl;
-};
-
-const normalizeR2PublicUrl = (url) => {
-  if (typeof url !== 'string') return url;
-  const trimmed = url.trim();
-  if (!trimmed) return trimmed;
-  if (trimmed.startsWith('blob:')) return trimmed;
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return sanitizeR2Url(trimmed);
-  }
-  return sanitizeR2Url(trimmed);
+  return publicUrl;
 };
 
 const uploadFileToStorage = async (file, pathPrefix) => {
   try {
     const url = await uploadToR2(file, pathPrefix);
     storageUploadFailed = null;
-    return normalizeR2PublicUrl(url);
+    return url;
   } catch (err) {
     storageUploadFailed = err?.message || 'Upload failed.';
     throw err;
@@ -774,7 +743,7 @@ export default function App() {
         const uploadedUrl = await uploadFileToStorage(f, 'announcements');
         const previewItem = previewMedia[index];
         if (previewItem && previewItem.url.startsWith('blob:')) {
-        URL.revokeObjectURL(previewItem.url);
+          revokeObjectUrl(previewItem.url);
         }
         return { ...previewItem, url: uploadedUrl };
       }));
@@ -1029,14 +998,6 @@ export default function App() {
   const [annModal, setAnnModal] = useState({ open: false, step: 1, data: null });
   const [lightbox, setLightbox] = useState(null); // {type,url,name}
 
-  const normalizeVideoSrc = (url) => {
-    if (typeof url !== 'string') return url;
-    const trimmed = String(url).trim();
-    if (!trimmed) return trimmed;
-    if (trimmed.startsWith('blob:')) return trimmed;
-    return sanitizeR2Url(trimmed);
-  };
-
   const revokeObjectUrl = (url) => {
     if (url && typeof url === 'string' && url.startsWith('blob:')) {
       URL.revokeObjectURL(url);
@@ -1072,19 +1033,11 @@ export default function App() {
     });
   };
   const saveAnnouncement = () => {
-    if (annModal.data.media) cleanupAnnouncementMediaUrls(annModal.data.media.filter(m => m.url && m.url.startsWith('blob:')));
-
-    const sanitizedMedia = (annModal.data.media || []).map(item => {
-      const source = String(item?.formattedUrl || item?.url || '');
-      const mediaUrl = source.startsWith('blob:') ? source : sanitizeR2Url(source);
-      if (source.startsWith('blob:')) throw new Error('Cannot save blob URL to database!');
-      console.log('Final URL saved to DB:', mediaUrl);
-      return { ...item, url: mediaUrl, formattedUrl: mediaUrl };
-    });
-
+    // Every media item's url is already the correct, final R2 public URL —
+    // set once by uploadFileToStorage at upload time — so it's saved as-is,
+    // with no re-processing, re-guessing of field names, or "cleaning" here.
     const payload = {
       ...annModal.data,
-      media: sanitizedMedia,
       id: annModal.data.id || nextId(),
       author: currentUser.name,
       date: new Date().toLocaleDateString()
@@ -2268,7 +2221,7 @@ export default function App() {
                             {m.type === 'video' ? (
                               <>
                                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                                  <source src={sanitizeR2Url(m.url)} type="video/mp4" />
+                                  <source src={m.url} type="video/mp4" />
                                   Your browser does not support the video tag.
                                 </video>
                                 <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,10,12,0.35)' }}>
@@ -2276,7 +2229,7 @@ export default function App() {
                                 </div>
                               </>
                             ) : (
-                              <img src={sanitizeR2Url(m.url)} alt={m.name} className="w-full h-full object-cover" />
+                              <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
                             )}
                           </div>
                         ))}
@@ -2779,11 +2732,11 @@ export default function App() {
                         <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
                           {m.type === 'video' ? (
                             <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                              <source src={sanitizeR2Url(m.url)} type="video/mp4" />
+                              <source src={m.url} type="video/mp4" />
                               Your browser does not support the video tag.
                             </video>
                           ) : (
-                            <img src={sanitizeR2Url(m.url)} alt={m.name} className="w-full h-full object-cover" />
+                            <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
                           )}
                           <button onClick={() => removeAnnouncementMedia(m.id)} className="absolute top-1 right-1 p-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,10,12,0.7)', color: C.danger }}><X className="w-3 h-3" /></button>
                         </div>
@@ -3129,11 +3082,11 @@ export default function App() {
           <div className="max-w-3xl w-full max-h-[85vh] flex items-center justify-center" onClick={e => e.stopPropagation()}>
             {lightbox.type === 'video' ? (
               <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[85vh] rounded-xl">
-                <source src={sanitizeR2Url(lightbox.url)} type="video/mp4" />
+                <source src={lightbox.url} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             ) : (
-              <img src={sanitizeR2Url(lightbox.url)} alt={lightbox.name} className="max-w-full max-h-[85vh] rounded-xl object-contain" />
+              <img src={lightbox.url} alt={lightbox.name} className="max-w-full max-h-[85vh] rounded-xl object-contain" />
             )}
           </div>
         </div>
@@ -3160,7 +3113,7 @@ export default function App() {
               {viewerFile.kind === 'Image' && <img src={viewerFile.url} alt={viewerFile.title || viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
               {viewerFile.kind === 'Video' && (
                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[75vh]">
-                  <source src={sanitizeR2Url(viewerFile.url)} type="video/mp4" />
+                  <source src={viewerFile.url} type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
               )}
