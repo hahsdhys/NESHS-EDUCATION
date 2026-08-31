@@ -359,6 +359,8 @@ const UPLOAD_API_URL = '/api/upload';
 let storageUploadFailed = null;
 
 const uploadToR2 = async (file, pathPrefix) => {
+  console.log('[uploadToR2] Starting upload:', { fileName: file.name, fileSize: file.size, fileType: file.type, pathPrefix });
+  
   const presignRes = await fetch(UPLOAD_API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -370,38 +372,53 @@ const uploadToR2 = async (file, pathPrefix) => {
     })
   });
 
+  console.log('[uploadToR2] API presign response status:', presignRes.status);
+
   if (!presignRes.ok) {
     const body = await presignRes.json().catch(() => ({}));
-    throw new Error(body.error || `/api/upload request failed (${presignRes.status})`);
+    const error = body.error || `/api/upload request failed (${presignRes.status})`;
+    console.error('[uploadToR2] ⚠️ Presign failed:', error);
+    throw new Error(error);
   }
 
   // publicUrl is the ONE field name the API route returns — see the
   // matching api/upload.js, which is the single place that builds it.
   const { uploadUrl, publicUrl } = await presignRes.json();
+  console.log('[uploadToR2] Presign response:', { uploadUrl: uploadUrl?.substring(0, 100) + '...', publicUrl });
+  
   if (!uploadUrl) throw new Error('/api/upload did not return an uploadUrl');
   if (!publicUrl) throw new Error('/api/upload did not return a publicUrl');
 
+  console.log('[uploadToR2] Uploading file to R2...');
   const uploadRes = await fetch(uploadUrl, {
     method: 'PUT',
     headers: { 'Content-Type': file.type || 'application/octet-stream' },
     body: file
   });
 
+  console.log('[uploadToR2] R2 upload response status:', uploadRes.status);
+
   if (!uploadRes.ok) {
     const text = await uploadRes.text().catch(() => '');
-    throw new Error(text || `R2 upload failed (${uploadRes.status})`);
+    const error = text || `R2 upload failed (${uploadRes.status})`;
+    console.error('[uploadToR2] ⚠️ R2 upload failed:', error);
+    throw new Error(error);
   }
 
+  console.log('[uploadToR2] ✅ Upload complete! Final public URL:', publicUrl);
   return publicUrl;
 };
 
 const uploadFileToStorage = async (file, pathPrefix) => {
   try {
+    console.log('[uploadFileToStorage] Calling uploadToR2 for:', file.name);
     const url = await uploadToR2(file, pathPrefix);
     storageUploadFailed = null;
+    console.log('[uploadFileToStorage] ✅ Success! Returned URL:', url);
     return url;
   } catch (err) {
     storageUploadFailed = err?.message || 'Upload failed.';
+    console.error('[uploadFileToStorage] ❌ Error:', storageUploadFailed);
     throw err;
   }
 };
@@ -553,31 +570,37 @@ const cleanMediaUrl = (url) => {
 
   // If it's a blob preview URL, return empty (blob URLs are never valid for database storage)
   if (clean.startsWith('blob:')) {
-    console.warn('[cleanMediaUrl] Attempted to use blob URL:', clean);
+    console.warn('[cleanMediaUrl] ⚠️ BLOB URL DETECTED - returning empty string to prevent database persistence:', clean);
     return '';
   }
 
   // If it's already a Cloudflare Worker URL, return as-is (already clean)
   if (clean.includes('ecobseducation.workers.dev')) {
-    // Still ensure any query params are removed
-    return clean.split('?')[0];
+    const cleaned = clean.split('?')[0]; // Remove query params
+    console.log('[cleanMediaUrl] ✓ Already a Cloudflare Worker URL (no changes needed):', cleaned);
+    return cleaned;
   }
 
   // Handle legacy .r2.dev domain URLs — extract just the filename
   if (clean.includes('.r2.dev') || clean.includes('r2.dev')) {
     const filename = clean.split('/').pop().split('?')[0];
-    // Encode filename to handle spaces and special characters
     const encoded = encodeURIComponent(filename);
-    return `${TARGET_DOMAIN}/${encoded}`;
+    const result = `${TARGET_DOMAIN}/${encoded}`;
+    console.log('[cleanMediaUrl] ↪️ Legacy R2 URL normalized:', { original: clean, filename, encoded, result });
+    return result;
   }
 
   // For any other URL (relative path, old domain, etc.), extract filename and rebuild
   const filename = clean.split('/').pop().split('?')[0];
-  if (!filename) return ''; // Safety: if no filename could be extracted, return empty
+  if (!filename) {
+    console.warn('[cleanMediaUrl] ⚠️ Could not extract filename from URL:', clean);
+    return '';
+  }
 
-  // Encode filename to handle spaces and special characters
   const encoded = encodeURIComponent(filename);
-  return `${TARGET_DOMAIN}/${encoded}`;
+  const result = `${TARGET_DOMAIN}/${encoded}`;
+  console.log('[cleanMediaUrl] 🔧 URL rebuilt from filename:', { original: clean, filename, encoded, result });
+  return result;
 };
 function PermissionModal({ open, label, onAllow, onDeny }) {
   if (!open) return null;
@@ -764,8 +787,11 @@ export default function App() {
 
   const handleFilesSelectedInner = async (files, context) => {
     if (context.type === 'announcementMedia') {
+      console.log('[UPLOAD] Step 1: Files selected for announcement', { count: files.length, files: files.map(f => ({ name: f.name, size: f.size, type: f.type })) });
+
       const previewMedia = files.map(f => {
         const previewUrl = URL.createObjectURL(f);
+        console.log('[UPLOAD] Step 2: Created blob preview URL for', f.name, '→', previewUrl);
         return {
           id: nextId(),
           type: f.type.startsWith('video/') ? 'video' : 'image',
@@ -774,11 +800,16 @@ export default function App() {
         };
       });
       setAnnModal(prev => ({ ...prev, data: { ...prev.data, media: [...prev.data.media, ...previewMedia] } }));
+      console.log('[UPLOAD] Step 3: Preview media added to state (blob URLs shown in UI)');
 
       const results = await Promise.allSettled(files.map(async (f, index) => {
+        console.log(`[UPLOAD] Step 4.${index + 1}: Uploading ${f.name} to Cloudflare Worker...`);
         const uploadedUrl = await uploadFileToStorage(f, 'announcements');
+        console.log(`[UPLOAD] Step 4.${index + 1}b: Upload complete! Final URL:`, uploadedUrl);
+        
         const previewItem = previewMedia[index];
         if (previewItem && previewItem.url.startsWith('blob:')) {
+          console.log(`[UPLOAD] Step 4.${index + 1}c: Revoking blob URL to free memory:`, previewItem.url);
           revokeObjectUrl(previewItem.url);
         }
         return { ...previewItem, url: uploadedUrl };
@@ -786,15 +817,19 @@ export default function App() {
 
       const media = results.filter(r => r.status === 'fulfilled').map(r => r.value);
       const failedCount = results.length - media.length;
+      console.log('[UPLOAD] Step 5: Upload results', { successful: media.length, failed: failedCount, finalUrls: media.map(m => m.url) });
 
       setAnnModal(prev => {
         const existing = prev.data.media.filter(m => !previewMedia.some(p => p.id === m.id));
-        return { ...prev, data: { ...prev.data, media: [...existing, ...media] } };
+        const updated = { ...prev, data: { ...prev.data, media: [...existing, ...media] } };
+        console.log('[UPLOAD] Step 6: State updated with final URLs (blob URLs replaced)');
+        return updated;
       });
 
       previewMedia.forEach(item => {
         const result = results.find(r => r.status === 'fulfilled' && r.value.id === item.id);
         if (!result) {
+          console.log('[UPLOAD] Step 7: Cleanup - revoking unused blob URL:', item.url);
           revokeObjectUrl(item.url);
         }
       });
@@ -1069,19 +1104,28 @@ export default function App() {
     });
   };
   const saveAnnouncement = () => {
+    console.log('[SAVE] Step 1: saveAnnouncement() called');
+    console.log('[SAVE] Step 2: Current announcement data:', annModal.data);
+    console.log('[SAVE] Step 3: Media items in state:', annModal.data.media || []);
+
     // Safety check: ensure no blob URLs are being saved
     const hasBlobUrls = (annModal.data.media || []).some(m => m.url && m.url.startsWith('blob:'));
     if (hasBlobUrls) {
+      console.warn('[SAVE] ⚠️ BLOB URL DETECTED! These media items still have blob: URLs:', annModal.data.media.filter(m => m.url && m.url.startsWith('blob:')));
       triggerToast('⏳ Uploads still in progress — please wait for all files to finish uploading before publishing.');
       return;
     }
+    console.log('[SAVE] Step 4: Blob URL check passed ✓');
 
     // Clean all media URLs before saving to database: remove blob URLs,
     // normalize legacy R2 domains, and ensure they all map to the Cloudflare Worker URL.
-    const cleanedMedia = (annModal.data.media || []).map(m => ({
-      ...m,
-      url: cleanMediaUrl(m.url)
-    })).filter(m => m.url); // Remove any items with invalid/blob URLs
+    const cleanedMedia = (annModal.data.media || []).map(m => {
+      const cleaned = { ...m, url: cleanMediaUrl(m.url) };
+      console.log(`[SAVE] Step 5.1: Cleaning media URL: ${m.url} → ${cleaned.url}`);
+      return cleaned;
+    }).filter(m => m.url); // Remove any items with invalid/blob URLs
+    
+    console.log('[SAVE] Step 5.2: Final cleaned media ready for database:', cleanedMedia.map(m => ({ name: m.name, url: m.url })));
 
     const payload = {
       ...annModal.data,
@@ -1090,6 +1134,8 @@ export default function App() {
       author: currentUser.name,
       date: new Date().toLocaleDateString()
     };
+    
+    console.log('[SAVE] Step 6: Final payload to save to Supabase:', payload);
 
     setAnnouncements(prev => {
       const exists = prev.some(a => a.id === payload.id);
