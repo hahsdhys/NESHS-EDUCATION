@@ -574,33 +574,46 @@ const cleanMediaUrl = (url) => {
     return '';
   }
 
-  // If it's already a Cloudflare Worker URL, return as-is (already clean)
-  if (clean.includes('ecobseducation.workers.dev')) {
-    const cleaned = clean.split('?')[0]; // Remove query params
-    console.log('[cleanMediaUrl] ✓ Already a Cloudflare Worker URL (no changes needed):', cleaned);
-    return cleaned;
-  }
-
-  // Handle legacy .r2.dev domain URLs — extract just the filename
-  if (clean.includes('.r2.dev') || clean.includes('r2.dev')) {
+  // Try to parse as a full URL to extract and preserve the path
+  try {
+    const parsedUrl = new URL(clean);
+    console.log('[cleanMediaUrl] Parsed URL:', { hostname: parsedUrl.hostname, pathname: parsedUrl.pathname });
+    
+    // Extract the pathname (e.g., "/announcements/1788163390272_1w413y_flower-girl-live-wallpaper.mp4")
+    // This preserves the subfolder structure!
+    let pathname = parsedUrl.pathname;
+    
+    // Remove leading slash if present
+    if (pathname.startsWith('/')) {
+      pathname = pathname.substring(1);
+    }
+    
+    // Safely encode each path segment to handle spaces and special characters
+    // e.g., "announcements/my file.mp4" → "announcements/my%20file.mp4"
+    const encodedPath = pathname
+      .split('/')
+      .map(segment => encodeURIComponent(decodeURIComponent(segment)))
+      .join('/');
+    
+    const result = `${TARGET_DOMAIN}/${encodedPath}`;
+    console.log('[cleanMediaUrl] ✅ Full path preserved and encoded:', { original: clean, encoded: result });
+    return result;
+  } catch (e) {
+    // Fallback for raw path strings that aren't valid URLs
+    console.log('[cleanMediaUrl] 🔧 URL parsing failed, using fallback:', e.message);
+    
+    // Extract filename and encode it
     const filename = clean.split('/').pop().split('?')[0];
-    const encoded = encodeURIComponent(filename);
+    if (!filename) {
+      console.warn('[cleanMediaUrl] ⚠️ Could not extract filename from URL:', clean);
+      return '';
+    }
+    
+    const encoded = encodeURIComponent(decodeURIComponent(filename));
     const result = `${TARGET_DOMAIN}/${encoded}`;
-    console.log('[cleanMediaUrl] ↪️ Legacy R2 URL normalized:', { original: clean, filename, encoded, result });
+    console.log('[cleanMediaUrl] 🔧 Using filename fallback:', { original: clean, filename, encoded, result });
     return result;
   }
-
-  // For any other URL (relative path, old domain, etc.), extract filename and rebuild
-  const filename = clean.split('/').pop().split('?')[0];
-  if (!filename) {
-    console.warn('[cleanMediaUrl] ⚠️ Could not extract filename from URL:', clean);
-    return '';
-  }
-
-  const encoded = encodeURIComponent(filename);
-  const result = `${TARGET_DOMAIN}/${encoded}`;
-  console.log('[cleanMediaUrl] 🔧 URL rebuilt from filename:', { original: clean, filename, encoded, result });
-  return result;
 };
 function PermissionModal({ open, label, onAllow, onDeny }) {
   if (!open) return null;
