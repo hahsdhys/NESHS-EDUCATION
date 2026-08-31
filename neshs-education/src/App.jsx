@@ -559,20 +559,25 @@ const cleanMediaUrl = (url) => {
 
   // If it's already a Cloudflare Worker URL, return as-is (already clean)
   if (clean.includes('ecobseducation.workers.dev')) {
-    return clean.split('?')[0]; // Remove query params but keep the clean URL
+    // Still ensure any query params are removed
+    return clean.split('?')[0];
   }
 
   // Handle legacy .r2.dev domain URLs — extract just the filename
   if (clean.includes('.r2.dev') || clean.includes('r2.dev')) {
     const filename = clean.split('/').pop().split('?')[0];
-    return `${TARGET_DOMAIN}/${filename}`;
+    // Encode filename to handle spaces and special characters
+    const encoded = encodeURIComponent(filename);
+    return `${TARGET_DOMAIN}/${encoded}`;
   }
 
   // For any other URL (relative path, old domain, etc.), extract filename and rebuild
   const filename = clean.split('/').pop().split('?')[0];
   if (!filename) return ''; // Safety: if no filename could be extracted, return empty
 
-  return `${TARGET_DOMAIN}/${filename}`;
+  // Encode filename to handle spaces and special characters
+  const encoded = encodeURIComponent(filename);
+  return `${TARGET_DOMAIN}/${encoded}`;
 };
 function PermissionModal({ open, label, onAllow, onDeny }) {
   if (!open) return null;
