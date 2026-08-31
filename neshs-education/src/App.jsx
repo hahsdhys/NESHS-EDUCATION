@@ -1069,6 +1069,13 @@ export default function App() {
     });
   };
   const saveAnnouncement = () => {
+    // Safety check: ensure no blob URLs are being saved
+    const hasBlobUrls = (annModal.data.media || []).some(m => m.url && m.url.startsWith('blob:'));
+    if (hasBlobUrls) {
+      triggerToast('⏳ Uploads still in progress — please wait for all files to finish uploading before publishing.');
+      return;
+    }
+
     // Clean all media URLs before saving to database: remove blob URLs,
     // normalize legacy R2 domains, and ensure they all map to the Cloudflare Worker URL.
     const cleanedMedia = (annModal.data.media || []).map(m => ({
@@ -2786,7 +2793,7 @@ export default function App() {
                   )}
                 </div>
 
-                <Btn className="w-full py-3" onClick={saveAnnouncement} reducedMotion={reducedMotion}>{annModal.data.id ? 'Save Changes' : 'Publish Article'}</Btn>
+                <Btn className="w-full py-3" onClick={saveAnnouncement} disabled={filesUploading} reducedMotion={reducedMotion}>{filesUploading ? '⏳ Uploading...' : (annModal.data.id ? 'Save Changes' : 'Publish Article')}</Btn>
               </div>
             )}
           </Card>
