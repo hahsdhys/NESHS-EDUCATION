@@ -551,13 +551,26 @@ const cleanMediaUrl = (url) => {
 
   let clean = url.trim();
 
-  // Kung blob preview URL, ibalik agad
-  if (clean.includes('blob:')) {
-    return clean.split('blob:')[0];
+  // If it's a blob preview URL, return empty (blob URLs are never valid for database storage)
+  if (clean.startsWith('blob:')) {
+    console.warn('[cleanMediaUrl] Attempted to use blob URL:', clean);
+    return '';
   }
 
-  // Kunin ang mismong filename lang sa dulo (tinatanggal ang kahit anong folder paths tulad ng /announcements/)
+  // If it's already a Cloudflare Worker URL, return as-is (already clean)
+  if (clean.includes('ecobseducation.workers.dev')) {
+    return clean.split('?')[0]; // Remove query params but keep the clean URL
+  }
+
+  // Handle legacy .r2.dev domain URLs — extract just the filename
+  if (clean.includes('.r2.dev') || clean.includes('r2.dev')) {
+    const filename = clean.split('/').pop().split('?')[0];
+    return `${TARGET_DOMAIN}/${filename}`;
+  }
+
+  // For any other URL (relative path, old domain, etc.), extract filename and rebuild
   const filename = clean.split('/').pop().split('?')[0];
+  if (!filename) return ''; // Safety: if no filename could be extracted, return empty
 
   return `${TARGET_DOMAIN}/${filename}`;
 };
@@ -1051,11 +1064,16 @@ export default function App() {
     });
   };
   const saveAnnouncement = () => {
-    // Every media item's url is already the correct, final R2 public URL —
-    // set once by uploadFileToStorage at upload time — so it's saved as-is,
-    // with no re-processing, re-guessing of field names, or "cleaning" here.
+    // Clean all media URLs before saving to database: remove blob URLs,
+    // normalize legacy R2 domains, and ensure they all map to the Cloudflare Worker URL.
+    const cleanedMedia = (annModal.data.media || []).map(m => ({
+      ...m,
+      url: cleanMediaUrl(m.url)
+    })).filter(m => m.url); // Remove any items with invalid/blob URLs
+
     const payload = {
       ...annModal.data,
+      media: cleanedMedia,
       id: annModal.data.id || nextId(),
       author: currentUser.name,
       date: new Date().toLocaleDateString()
@@ -2239,7 +2257,7 @@ export default function App() {
                             {m.type === 'video' ? (
                               <>
                                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                                  <source src={m.url} />
+                                  <source src={cleanMediaUrl(m.url)} />
                                   Your browser does not support the video tag.
                                 </video>
                                 <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,10,12,0.35)' }}>
@@ -2247,7 +2265,7 @@ export default function App() {
                                 </div>
                               </>
                             ) : (
-                              <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                              <img src={cleanMediaUrl(m.url)} alt={m.name} className="w-full h-full object-cover" />
                             )}
                           </div>
                         ))}
@@ -2348,7 +2366,7 @@ export default function App() {
                       <Card key={f.id} className="p-4 flex items-center justify-between gap-3">
                         <button onClick={() => setViewerFile(f)} className="flex items-center gap-3 min-w-0 text-left flex-1">
                           <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
-                            {f.kind === 'Image' ? <img src={f.url} alt={f.title || f.name} className="w-full h-full object-cover" /> : (f.kind === 'Video' || f.kind === 'Audio') ? <Play className="w-4 h-4" style={{ color: C.accent }} /> : <FileText className="w-4 h-4" style={{ color: C.accent }} />}
+                            {f.kind === 'Image' ? <img src={cleanMediaUrl(f.url)} alt={f.title || f.name} className="w-full h-full object-cover" /> : (f.kind === 'Video' || f.kind === 'Audio') ? <Play className="w-4 h-4" style={{ color: C.accent }} /> : <FileText className="w-4 h-4" style={{ color: C.accent }} />}
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold truncate">{f.title || f.name}</p>
@@ -2750,11 +2768,11 @@ export default function App() {
                         <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
                           {m.type === 'video' ? (
                             <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                              <source src={m.url} />
+                              <source src={cleanMediaUrl(m.url)} />
                               Your browser does not support the video tag.
                             </video>
                           ) : (
-                            <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                            <img src={cleanMediaUrl(m.url)} alt={m.name} className="w-full h-full object-cover" />
                           )}
                           <button onClick={() => removeAnnouncementMedia(m.id)} className="absolute top-1 right-1 p-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,10,12,0.7)', color: C.danger }}><X className="w-3 h-3" /></button>
                         </div>
@@ -3100,11 +3118,11 @@ export default function App() {
           <div className="max-w-3xl w-full max-h-[85vh] flex items-center justify-center" onClick={e => e.stopPropagation()}>
             {lightbox.type === 'video' ? (
               <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[85vh] rounded-xl">
-                <source src={lightbox.url} />
+                <source src={cleanMediaUrl(lightbox.url)} />
                 Your browser does not support the video tag.
               </video>
             ) : (
-              <img src={lightbox.url} alt={lightbox.name} className="max-w-full max-h-[85vh] rounded-xl object-contain" />
+              <img src={cleanMediaUrl(lightbox.url)} alt={lightbox.name} className="max-w-full max-h-[85vh] rounded-xl object-contain" />
             )}
           </div>
         </div>
@@ -3128,15 +3146,15 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 rounded-xl overflow-hidden flex items-center justify-center" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
-              {viewerFile.kind === 'Image' && <img src={viewerFile.url} alt={viewerFile.title || viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
+              {viewerFile.kind === 'Image' && <img src={cleanMediaUrl(viewerFile.url)} alt={viewerFile.title || viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
               {viewerFile.kind === 'Video' && (
                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                  <source src={viewerFile.url} />
+                  <source src={cleanMediaUrl(viewerFile.url)} />
                   Your browser does not support the video tag.
                 </video>
               )}
-              {viewerFile.kind === 'Audio' && <audio src={viewerFile.url} controls className="w-full px-8" />}
-              {viewerFile.kind === 'PDF' && <embed src={viewerFile.url} type="application/pdf" className="w-full h-[75vh]" />}
+              {viewerFile.kind === 'Audio' && <audio src={cleanMediaUrl(viewerFile.url)} controls className="w-full px-8" />}
+              {viewerFile.kind === 'PDF' && <embed src={cleanMediaUrl(viewerFile.url)} type="application/pdf" className="w-full h-[75vh]" />}
               {!['Image', 'Video', 'Audio', 'PDF'].includes(viewerFile.kind) && (
                 <div className="p-10 text-center">
                   <FileText className="w-10 h-10 mx-auto mb-3" style={{ color: C.textDim }} />
