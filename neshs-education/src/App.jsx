@@ -547,25 +547,19 @@ const SettingsRow = ({ icon: Icon, label, desc, control }) => (
 const cleanMediaUrl = (url) => {
   if (!url || typeof url !== 'string') return '';
 
- const TARGET_DOMAIN = 'https://rough-art-8c28.ecobseducation.workers.dev';
+  const TARGET_DOMAIN = 'https://rough-art-8c28.ecobseducation.workers.dev';
 
-  let clean = url;
+  let clean = url.trim();
+
+  // Kung blob preview URL, ibalik agad
   if (clean.includes('blob:')) {
-    clean = clean.split('blob:')[0];
+    return clean.split('blob:')[0];
   }
 
-  if (clean.includes('.r2.dev/')) {
-    const parts = clean.split('.r2.dev/');
-    const key = parts[parts.length - 1].replace(/^\/+/, '');
-    return key ? `${TARGET_DOMAIN}/${key}` : '';
-  }
+  // Kunin ang mismong filename lang sa dulo (tinatanggal ang kahit anong folder paths tulad ng /announcements/)
+  const filename = clean.split('/').pop().split('?')[0];
 
-  if (clean.startsWith('http://') || clean.startsWith('https://')) {
-    return clean;
-  }
-
-  const relativePath = clean.replace(/^\/+/, '');
-  return relativePath ? `${TARGET_DOMAIN}/${relativePath}` : '';
+  return `${TARGET_DOMAIN}/${filename}`;
 };
 function PermissionModal({ open, label, onAllow, onDeny }) {
   if (!open) return null;
