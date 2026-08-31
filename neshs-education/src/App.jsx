@@ -2239,7 +2239,7 @@ export default function App() {
                             {m.type === 'video' ? (
                               <>
                                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                                  <source src={m.url} type="video/mp4" />
+                                  <source src={m.url} />
                                   Your browser does not support the video tag.
                                 </video>
                                 <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,10,12,0.35)' }}>
@@ -2750,7 +2750,7 @@ export default function App() {
                         <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
                           {m.type === 'video' ? (
                             <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                              <source src={m.url} type="video/mp4" />
+                              <source src={m.url} />
                               Your browser does not support the video tag.
                             </video>
                           ) : (
@@ -3100,7 +3100,7 @@ export default function App() {
           <div className="max-w-3xl w-full max-h-[85vh] flex items-center justify-center" onClick={e => e.stopPropagation()}>
             {lightbox.type === 'video' ? (
               <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[85vh] rounded-xl">
-                <source src={lightbox.url} type="video/mp4" />
+                <source src={lightbox.url} />
                 Your browser does not support the video tag.
               </video>
             ) : (
@@ -3130,8 +3130,8 @@ export default function App() {
             <div className="flex-1 rounded-xl overflow-hidden flex items-center justify-center" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
               {viewerFile.kind === 'Image' && <img src={viewerFile.url} alt={viewerFile.title || viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
               {viewerFile.kind === 'Video' && (
-                <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[75vh]">
-                  <source src={viewerFile.url} type="video/mp4" />
+                <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
+                  <source src={viewerFile.url} />
                   Your browser does not support the video tag.
                 </video>
               )}
