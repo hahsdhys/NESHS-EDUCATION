@@ -15,7 +15,7 @@ const r2Client = new S3Client({
 
 // Sigurado nang may babalikang public base URL kahit walang na-set na ENV variable sa Vercel
 function getPublicBase() {
-  const fallbackUrl = 'https://pub-020adfa3657b43cab1abad0ba2d60a52.r2.dev';
+  const fallbackUrl = 'https://pub-020adfa3657b43cab1abad0ba2d6ba57.r2.dev';
   const raw = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL || fallbackUrl).trim();
   return raw.replace(/\/+$/, '');
 }
