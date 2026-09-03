@@ -1,5 +1,6 @@
 export const cleanMediaUrl = (url) => {
   if (!url) return '';
+  if (typeof url !== 'string') return '';
   if (url.startsWith('blob:')) return '';
 
   const fileName = url.split('/').pop();
