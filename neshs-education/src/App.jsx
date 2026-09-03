@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { cleanMediaUrl } from './utils/cleanMediaUrl';
 import {
   ShieldCheck, User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
   Megaphone, CheckCircle, Lock, Unlock, Menu, X,
@@ -560,61 +561,6 @@ const SettingsRow = ({ icon: Icon, label, desc, control }) => (
 );
 
 // permission modal -------------------------------------------------
-// Helper para linisin ang lumang sirang URL mula sa Database
-const cleanMediaUrl = (url) => {
-  if (!url || typeof url !== 'string') return '';
-
-  const TARGET_DOMAIN = 'https://rough-art-8c28.ecobseducation.workers.dev';
-
-  let clean = url.trim();
-
-  // If it's a blob preview URL, return empty (blob URLs are never valid for database storage)
-  if (clean.startsWith('blob:')) {
-    console.warn('[cleanMediaUrl] ⚠️ BLOB URL DETECTED - returning empty string to prevent database persistence:', clean);
-    return '';
-  }
-
-  // Try to parse as a full URL to extract and preserve the path
-  try {
-    const parsedUrl = new URL(clean);
-    console.log('[cleanMediaUrl] Parsed URL:', { hostname: parsedUrl.hostname, pathname: parsedUrl.pathname });
-    
-    // Extract the pathname (e.g., "/announcements/1788163390272_1w413y_flower-girl-live-wallpaper.mp4")
-    // This preserves the subfolder structure!
-    let pathname = parsedUrl.pathname;
-    
-    // Remove leading slash if present
-    if (pathname.startsWith('/')) {
-      pathname = pathname.substring(1);
-    }
-    
-    // Safely encode each path segment to handle spaces and special characters
-    // e.g., "announcements/my file.mp4" → "announcements/my%20file.mp4"
-    const encodedPath = pathname
-      .split('/')
-      .map(segment => encodeURIComponent(decodeURIComponent(segment)))
-      .join('/');
-    
-    const result = `${TARGET_DOMAIN}/${encodedPath}`;
-    console.log('[cleanMediaUrl] ✅ Full path preserved and encoded:', { original: clean, encoded: result });
-    return result;
-  } catch (e) {
-    // Fallback for raw path strings that aren't valid URLs
-    console.log('[cleanMediaUrl] 🔧 URL parsing failed, using fallback:', e.message);
-    
-    // Extract filename and encode it
-    const filename = clean.split('/').pop().split('?')[0];
-    if (!filename) {
-      console.warn('[cleanMediaUrl] ⚠️ Could not extract filename from URL:', clean);
-      return '';
-    }
-    
-    const encoded = encodeURIComponent(decodeURIComponent(filename));
-    const result = `${TARGET_DOMAIN}/${encoded}`;
-    console.log('[cleanMediaUrl] 🔧 Using filename fallback:', { original: clean, filename, encoded, result });
-    return result;
-  }
-};
 function PermissionModal({ open, label, onAllow, onDeny }) {
   if (!open) return null;
   return (
@@ -868,7 +814,7 @@ export default function App() {
         mime: f.type,
         size: f.size,
         folderId: activeFolderId,
-        url: await uploadFileToStorage(f, 'project-history'),
+        url: cleanMediaUrl(await uploadFileToStorage(f, 'project-history')),
         authorized: false,
         processed: true,
         uploadedBy: currentUser?.name || 'Unknown',
@@ -892,7 +838,7 @@ export default function App() {
       // its title, folder, and authorization state intact — the "rename + replace
       // content" path, distinct from a plain title-only rename.
       const f = files[0];
-      const url = await uploadFileToStorage(f, 'project-history');
+      const url = cleanMediaUrl(await uploadFileToStorage(f, 'project-history'));
       const kind = guessKind(f);
       setProjectFiles(prev => prev.map(pf => pf.id === context.id ? { ...pf, name: f.name, kind, mime: f.type, size: f.size, url, uploadedAt: new Date().toLocaleString() } : pf));
       const existing = projectFiles.find(pf => pf.id === context.id);
@@ -976,12 +922,14 @@ export default function App() {
   const [folderError, setFolderError] = useState('');
   const todayISO = () => new Date().toISOString().slice(0, 10);
   const [newFolder, setNewFolder] = useState({ title: '', module: 'announcements', uploadDate: todayISO() });
+  const [newFolderParentId, setNewFolderParentId] = useState(null);
 
   // Opens the folder-creation modal already scoped to Project History, as a
   // single-step "group name" prompt — no module question, since the module
   // is implied by where the button was tapped.
   const openProjectHistoryFolderCreate = () => {
     setNewFolder({ title: '', module: 'projectHistory', uploadDate: todayISO() });
+    setNewFolderParentId(activeFolderId);
     setAddFolderLockedModule(true);
     setFolderStep(1);
     setFolderError('');
@@ -990,6 +938,7 @@ export default function App() {
 
   const closeAddFolderModal = () => {
     setAddFolderOpen(false); setFolderStep(1); setAddFolderLockedModule(false); setFolderError('');
+    setNewFolderParentId(null);
     setNewFolder({ title: '', module: 'announcements', uploadDate: todayISO() });
   };
 
@@ -1005,6 +954,8 @@ export default function App() {
       id: `f-${nextId()}`,
       title: newFolder.title.trim(),
       module: newFolder.module,
+      parentId: newFolder.module === 'projectHistory' ? newFolderParentId : null,
+      createdAt: new Date().toISOString(),
       // Project History folders record the date the folder/upload batch was created;
       // other modules don't need it, so it's left undefined for them.
       uploadDate: newFolder.module === 'projectHistory' ? newFolder.uploadDate : undefined
@@ -1022,14 +973,25 @@ export default function App() {
   const deleteFolder = (id) => {
     const f = folders.find(x => x.id === id);
     if (!window.confirm(`Delete the folder "${f?.title}"? This will also delete every file inside it. This cannot be undone.`)) return;
-    const filesInside = projectFiles.filter(pf => pf.folderId === id).length;
-    setFolders(prev => prev.filter(x => x.id !== id));
+    const deletedFolderIds = new Set([id]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      folders.forEach(folder => {
+        if (deletedFolderIds.has(folder.parentId) && !deletedFolderIds.has(folder.id)) {
+          deletedFolderIds.add(folder.id);
+          changed = true;
+        }
+      });
+    }
+    const filesInside = projectFiles.filter(pf => deletedFolderIds.has(pf.folderId)).length;
+    setFolders(prev => prev.filter(x => !deletedFolderIds.has(x.id)));
     // Cascade-delete: files/announcements/achievers/quizzes scoped to this folder
     // become orphaned (invisible, but still taking up storage) if left behind.
-    setProjectFiles(prev => prev.filter(pf => pf.folderId !== id));
-    setAnnouncements(prev => prev.filter(a => a.folderId !== id));
-    setAchievers(prev => prev.filter(a => a.folderId !== id));
-    setQuizzes(prev => prev.filter(q => q.folderId !== id));
+    setProjectFiles(prev => prev.filter(pf => !deletedFolderIds.has(pf.folderId)));
+    setAnnouncements(prev => prev.filter(a => !deletedFolderIds.has(a.folderId)));
+    setAchievers(prev => prev.filter(a => !deletedFolderIds.has(a.folderId)));
+    setQuizzes(prev => prev.filter(q => !deletedFolderIds.has(q.folderId)));
     setActiveTab(prev => (prev === id ? 'announcements' : prev));
     if (f) logAction('deleted folder', filesInside > 0 ? `${f.title} (${filesInside} file${filesInside === 1 ? '' : 's'})` : f.title);
   };
@@ -1039,6 +1001,29 @@ export default function App() {
   const activeModule = activeFolder ? activeFolder.module : activeTab;
   const activeFolderId = activeFolder ? activeFolder.id : null;
   const projectHistoryFolders = folders.filter(f => f.module === 'projectHistory');
+  const projectHistoryChildren = projectHistoryFolders.filter(f => (f.parentId || null) === activeFolderId);
+  const folderBreadcrumbs = [];
+  let breadcrumbFolder = activeFolder;
+  while (breadcrumbFolder) {
+    folderBreadcrumbs.unshift(breadcrumbFolder);
+    breadcrumbFolder = projectHistoryFolders.find(f => f.id === breadcrumbFolder.parentId);
+  }
+  const [folderNavigating, setFolderNavigating] = useState(false);
+  const [folderRenameModal, setFolderRenameModal] = useState({ open: false, id: null, title: '' });
+  const navigateProjectHistory = (folderId) => {
+    setFolderNavigating(true);
+    setActiveTab(folderId || 'projectHistory');
+    requestAnimationFrame(() => setFolderNavigating(false));
+  };
+  const openFolderRename = (folder) => setFolderRenameModal({ open: true, id: folder.id, title: folder.title });
+  const saveFolderRename = () => {
+    const title = folderRenameModal.title.trim();
+    if (!title) return;
+    setFolders(prev => prev.map(folder => folder.id === folderRenameModal.id ? { ...folder, title } : folder));
+    logAction('renamed folder', title);
+    triggerToast('Folder renamed');
+    setFolderRenameModal({ open: false, id: null, title: '' });
+  };
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // desktop "close" toggle for the NESHS PORTAL sidebar
 
@@ -2362,13 +2347,15 @@ export default function App() {
             <div>
               <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
                 <div className="min-w-0">
-                  {activeFolder ? (
-                    <button onClick={() => setActiveTab('projectHistory')} className="flex items-center gap-1.5 text-[10px] font-bold uppercase mb-1" style={{ color: C.accent }}>
-                      <ChevronLeft className="w-3.5 h-3.5" /> All Groups
-                    </button>
-                  ) : (
-                    <p className="text-[10px] font-bold uppercase mb-1" style={{ color: C.textDim }}>Project History</p>
-                  )}
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase mb-2 flex-wrap" style={{ color: C.textDim }}>
+                    <button onClick={() => navigateProjectHistory(null)} style={{ color: C.accent }}>Project History</button>
+                    {folderBreadcrumbs.map(folder => (
+                      <React.Fragment key={folder.id}>
+                        <ArrowRight className="w-3 h-3" />
+                        <button onClick={() => navigateProjectHistory(folder.id)} style={{ color: folder.id === activeFolderId ? C.accent : C.textDim }}>{folder.title}</button>
+                      </React.Fragment>
+                    ))}
+                  </div>
                   <h2 className="text-xl font-extrabold truncate">{activeFolder ? activeFolder.title : 'Upload Groups'}</h2>
                   {activeFolder?.uploadDate && (
                     <p className="text-[10px] font-semibold uppercase mt-0.5" style={{ color: C.textDim }}>Folder created {activeFolder.uploadDate}</p>
@@ -2376,17 +2363,19 @@ export default function App() {
                 </div>
                 {canEditEverything && (
                   <div className="flex gap-2 shrink-0">
-                    <Btn variant="ghost" onClick={openProjectHistoryFolderCreate} reducedMotion={reducedMotion}><FolderPlus className="w-4 h-4" /> New Group</Btn>
-                    {activeFolder && <Btn onClick={uploadProjectFile} reducedMotion={reducedMotion}><Upload className="w-4 h-4" /> Upload File</Btn>}
+                    <Btn variant="ghost" onClick={openProjectHistoryFolderCreate} reducedMotion={reducedMotion}><FolderPlus className="w-4 h-4" /> Create Folder</Btn>
+                    {activeFolder && <Btn onClick={uploadProjectFile} disabled={filesUploading} reducedMotion={reducedMotion}>{filesUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Upload File Here</Btn>}
                   </div>
                 )}
               </div>
 
-              {!activeFolder ? (
+              {folderNavigating ? (
+                <Card className="p-12 text-center mt-4"><Loader2 className="w-8 h-8 mx-auto animate-spin" style={{ color: C.accent }} /><p className="text-xs mt-3" style={{ color: C.textDim }}>Opening folder...</p></Card>
+              ) : !activeFolder ? (
                 // The group list lives directly on the Project History page itself —
                 // every group created here stays inside this page, it's never a
                 // separate destination outside Project History.
-                projectHistoryFolders.length === 0 ? (
+                projectHistoryChildren.length === 0 ? (
                   <Card className="p-12 text-center mt-4">
                     <Folder className="w-10 h-10 mx-auto mb-3" style={{ color: C.textDim }} />
                     <p className="text-sm mb-1" style={{ color: C.textDim }}>No upload groups yet.</p>
@@ -2399,7 +2388,7 @@ export default function App() {
                   </Card>
                 ) : (
                   <div className="grid gap-2 mt-4">
-                    {projectHistoryFolders.map(f => {
+                    {projectHistoryChildren.map(f => {
                       const fileCount = projectFiles.filter(pf => pf.folderId === f.id).length;
                       return (
                         <Card key={f.id} className="p-4 flex items-center justify-between gap-3">
@@ -2417,6 +2406,11 @@ export default function App() {
                               <ArrowRight className="w-4 h-4" />
                             </button>
                             {canEditEverything && (
+                              <button onClick={() => openFolderRename(f)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.textDim }} title="Rename folder">
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canEditEverything && (
                               <button onClick={() => deleteFolder(f.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.danger }} title="Delete group">
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -2429,6 +2423,23 @@ export default function App() {
                 )
               ) : (
                 <div className="mt-4">
+                  {projectHistoryChildren.length > 0 && (
+                    <div className="grid gap-2 mb-3">
+                      {projectHistoryChildren.map(f => (
+                        <Card key={f.id} className="p-4 flex items-center justify-between gap-3">
+                          <button onClick={() => navigateProjectHistory(f.id)} className="flex items-center gap-3 min-w-0 text-left flex-1">
+                            <Folder className="w-5 h-5 shrink-0" style={{ color: C.accent }} />
+                            <span className="text-sm font-semibold truncate">{f.title}</span>
+                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {canEditEverything && <button onClick={() => openFolderRename(f)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.textDim }} title="Rename folder"><Edit className="w-4 h-4" /></button>}
+                            <button onClick={() => navigateProjectHistory(f.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.accent }} title="Open folder"><ArrowRight className="w-4 h-4" /></button>
+                            {canEditEverything && <button onClick={() => deleteFolder(f.id)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.danger }} title="Delete folder"><Trash2 className="w-4 h-4" /></button>}
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                   {projectFiles.filter(f => f.folderId === activeFolderId).length === 0 && (
                     <Card className="p-12 text-center"><FileText className="w-10 h-10 mx-auto mb-3" style={{ color: C.textDim }} /><p className="text-sm" style={{ color: C.textDim }}>No files uploaded yet.</p></Card>
                   )}
@@ -3052,6 +3063,21 @@ export default function App() {
                 </form>
               )
             )}
+          </Card>
+        </div>
+      )}
+
+      {folderRenameModal.open && (
+        <div className="fixed inset-0 z-[290] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+          <Card className="w-full max-w-sm p-6">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-extrabold">Rename Folder</h3>
+              <button onClick={() => setFolderRenameModal({ open: false, id: null, title: '' })} style={{ color: C.textDim }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <Field autoFocus placeholder="Folder name" value={folderRenameModal.title} onChange={e => setFolderRenameModal(prev => ({ ...prev, title: e.target.value }))} />
+              <Btn className="w-full py-3" onClick={saveFolderRename} disabled={!folderRenameModal.title.trim()} reducedMotion={reducedMotion}>Save Name</Btn>
+            </div>
           </Card>
         </div>
       )}
