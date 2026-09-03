@@ -824,6 +824,7 @@ export default function App() {
       const failedCount = results.length - items.length;
       if (items.length) {
         setProjectFiles(prev => [...items, ...prev]);
+        updateFolderFileCount(activeFolderId, items.length);
         items.forEach(f => logAction('uploaded file', f.title));
       }
       if (items.length && !failedCount) {
@@ -924,6 +925,31 @@ export default function App() {
   const [newFolder, setNewFolder] = useState({ title: '', module: 'announcements', uploadDate: todayISO() });
   const [newFolderParentId, setNewFolderParentId] = useState(null);
 
+  const updateFolderFileCount = (folderId, delta) => {
+    if (!folderId || !delta) return;
+    setFolders(prev => prev.map(folder => {
+      if (folder.id !== folderId) return folder;
+      const currentCount = folder.project_files?.[0]?.count || 0;
+      return { ...folder, project_files: [{ count: Math.max(0, currentCount + delta) }] };
+    }));
+  };
+
+  const fetchProjectFolderCounts = async () => {
+    if (!supabaseConfigured) return;
+    const { data, error } = await supabase
+      .from('project_folders')
+      .select('*, project_files(count)');
+    if (error) {
+      console.warn('[NESHS Portal] Could not load Project History file counts.', error);
+      return;
+    }
+    if (!Array.isArray(data)) return;
+    setFolders(prev => prev.map(folder => {
+      const remoteFolder = data.find(item => item.id === folder.id);
+      return remoteFolder ? { ...folder, project_files: remoteFolder.project_files } : folder;
+    }));
+  };
+
   // Opens the folder-creation modal already scoped to Project History, as a
   // single-step "group name" prompt — no module question, since the module
   // is implied by where the button was tapped.
@@ -955,6 +981,7 @@ export default function App() {
       title: newFolder.title.trim(),
       module: newFolder.module,
       parentId: newFolder.module === 'projectHistory' ? newFolderParentId : null,
+      project_files: [{ count: 0 }],
       createdAt: new Date().toISOString(),
       // Project History folders record the date the folder/upload batch was created;
       // other modules don't need it, so it's left undefined for them.
@@ -1170,6 +1197,7 @@ export default function App() {
   const deleteProjectFile = (id) => {
     const f = projectFiles.find(x => x.id === id);
     setProjectFiles(prev => prev.filter(x => x.id !== id));
+    updateFolderFileCount(f?.folderId, -1);
     if (viewerFile && viewerFile.id === id) setViewerFile(null);
     if (f) logAction('deleted file', f.title || f.name);
   };
@@ -1534,6 +1562,10 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (dataLoaded) fetchProjectFolderCounts();
+  }, [dataLoaded]);
 
   // Realtime subscription — only active when Supabase is actually configured.
   // Whenever ANY device saves, every other open browser receives the new row
@@ -2389,7 +2421,7 @@ export default function App() {
                 ) : (
                   <div className="grid gap-2 mt-4">
                     {projectHistoryChildren.map(f => {
-                      const fileCount = projectFiles.filter(pf => pf.folderId === f.id).length;
+                      const fileCount = f.project_files?.[0]?.count ?? projectFiles.filter(pf => pf.folderId === f.id).length;
                       return (
                         <Card key={f.id} className="p-4 flex items-center justify-between gap-3">
                           <button onClick={() => setActiveTab(f.id)} className="flex items-center gap-3 min-w-0 text-left flex-1">
@@ -2429,7 +2461,10 @@ export default function App() {
                         <Card key={f.id} className="p-4 flex items-center justify-between gap-3">
                           <button onClick={() => navigateProjectHistory(f.id)} className="flex items-center gap-3 min-w-0 text-left flex-1">
                             <Folder className="w-5 h-5 shrink-0" style={{ color: C.accent }} />
-                            <span className="text-sm font-semibold truncate">{f.title}</span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">{f.title}</p>
+                              <p className="text-[10px]" style={{ color: C.textDim }}>{f.project_files?.[0]?.count ?? projectFiles.filter(pf => pf.folderId === f.id).length} files</p>
+                            </div>
                           </button>
                           <div className="flex items-center gap-1 shrink-0">
                             {canEditEverything && <button onClick={() => openFolderRename(f)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.textDim }} title="Rename folder"><Edit className="w-4 h-4" /></button>}
