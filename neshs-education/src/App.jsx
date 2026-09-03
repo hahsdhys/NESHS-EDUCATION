@@ -2221,7 +2221,7 @@ export default function App() {
             <div>
               <Card className="p-10 text-center">
                 <div className="w-28 h-28 mx-auto rounded-full flex items-center justify-center mb-5 cursor-pointer overflow-hidden" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.accent}` }} onClick={() => isCreator && uploadAuthorPhoto()}>
-                  {authorPhotoUrl ? <img src={authorPhotoUrl} alt={authorName} className="w-full h-full object-cover" /> : <User className="w-10 h-10" style={{ color: C.accent }} />}
+                  {authorPhotoUrl ? <img src={cleanMediaUrl(authorPhotoUrl)} alt={authorName} className="w-full h-full object-cover" /> : <User className="w-10 h-10" style={{ color: C.accent }} />}
                 </div>
                 {isCreator && <p className="text-[9px] uppercase font-bold mb-4 -mt-2" style={{ color: C.textDim }}>Tap photo to change</p>}
 
@@ -2258,7 +2258,7 @@ export default function App() {
                     <Card key={a.id} className="p-5 relative">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden shrink-0" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.accent}` }}>
-                          {a.photo ? <img src={a.photo} alt={a.name} className="w-full h-full object-cover" /> : <User className="w-5 h-5" style={{ color: C.accent }} />}
+                          {(a.avatar_url || a.photo) ? <img src={cleanMediaUrl(a.avatar_url || a.photo)} alt={a.name} className="w-full h-full object-cover" /> : <User className="w-5 h-5" style={{ color: C.accent }} />}
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-extrabold truncate">{a.name}</p>
@@ -2504,7 +2504,7 @@ export default function App() {
                         className="p-5 relative cursor-pointer flex items-center gap-4"
                       >
                         <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden shrink-0" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.gold}` }}>
-                          {a.photo ? <img src={a.photo} alt={a.name} className="w-full h-full object-cover" /> : <ImageIcon className="w-5 h-5" style={{ color: C.textDim }} />}
+                          {(a.avatar_url || a.photo) ? <img src={cleanMediaUrl(a.avatar_url || a.photo)} alt={a.name} className="w-full h-full object-cover" /> : <ImageIcon className="w-5 h-5" style={{ color: C.textDim }} />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-base font-extrabold truncate">{a.name}</h3>
@@ -2530,7 +2530,7 @@ export default function App() {
                               style={{ backgroundColor: C.accentDim, border: `2px solid ${C.gold}` }}
                               onClick={(e) => { e.stopPropagation(); if (canEditEverything) uploadAchieverPhoto(a.id); }}
                             >
-                              {a.photo ? <img src={a.photo} alt={a.name} className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8" style={{ color: C.textDim }} />}
+                              {(a.avatar_url || a.photo) ? <img src={cleanMediaUrl(a.avatar_url || a.photo)} alt={a.name} className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8" style={{ color: C.textDim }} />}
                             </div>
                             {canEditEverything && <p className="text-[9px] uppercase font-bold mb-3" style={{ color: C.textDim }}>Tap photo to change</p>}
                             <h4 className="text-lg font-extrabold">{a.name}</h4>
@@ -2880,7 +2880,7 @@ export default function App() {
             </div>
             <div className="space-y-4">
               <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center cursor-pointer overflow-hidden" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.gold}` }} onClick={uploadAchieverPhotoInModal}>
-                {achieverModal.data.photo ? <img src={achieverModal.data.photo} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-6 h-6" style={{ color: C.textDim }} />}
+                {achieverModal.data.photo ? <img src={cleanMediaUrl(achieverModal.data.photo)} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-6 h-6" style={{ color: C.textDim }} />}
               </div>
               <p className="text-[9px] uppercase font-bold text-center -mt-2" style={{ color: C.textDim }}>Tap to upload photo</p>
               <Field placeholder="Full Name" value={achieverModal.data.name} onChange={e => setAchieverModal(prev => ({ ...prev, data: { ...prev.data, name: e.target.value } }))} />
@@ -2902,7 +2902,7 @@ export default function App() {
             </div>
             <div className="space-y-4">
               <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center cursor-pointer overflow-hidden" style={{ backgroundColor: C.accentDim, border: `2px solid ${C.accent}` }} onClick={uploadAuthorModalPhoto}>
-                {authorModal.data.photo ? <img src={authorModal.data.photo} alt="" className="w-full h-full object-cover" /> : <User className="w-6 h-6" style={{ color: C.textDim }} />}
+                {authorModal.data.photo ? <img src={cleanMediaUrl(authorModal.data.photo)} alt="" className="w-full h-full object-cover" /> : <User className="w-6 h-6" style={{ color: C.textDim }} />}
               </div>
               <p className="text-[9px] uppercase font-bold text-center -mt-2" style={{ color: C.textDim }}>Tap to upload photo</p>
               <Field placeholder="Full Name" value={authorModal.data.name} onChange={e => setAuthorModal(prev => ({ ...prev, data: { ...prev.data, name: e.target.value } }))} />
