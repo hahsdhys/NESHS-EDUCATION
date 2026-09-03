@@ -2236,7 +2236,7 @@ export default function App() {
                   <>
                     <h1 className="text-2xl font-extrabold mb-1">{authorName}</h1>
                     <Chip>{authorTitle}</Chip>
-                    <p className="mt-6 max-w-lg mx-auto text-sm leading-relaxed" style={{ color: C.textDim }}>{authorBio}</p>
+                    <p className="mt-6 max-w-lg mx-auto text-sm leading-relaxed whitespace-pre-line" style={{ color: C.textDim }}>{authorBio}</p>
                   </>
                 )}
                 {isCreator && !authorEditing && <Btn variant="ghost" className="mt-4" onClick={() => setAuthorEditing(true)} reducedMotion={reducedMotion}><Edit className="w-3 h-3" /> Edit Profile</Btn>}
@@ -2265,7 +2265,7 @@ export default function App() {
                           {a.title && <p className="text-[10px] uppercase font-bold" style={{ color: C.accent }}>{a.title}</p>}
                         </div>
                       </div>
-                      {a.bio && <p className="text-xs mt-3 leading-relaxed" style={{ color: C.textDim }}>{a.bio}</p>}
+                      {a.bio && <p className="text-xs mt-3 leading-relaxed whitespace-pre-line" style={{ color: C.textDim }}>{a.bio}</p>}
                       {canEditEverything && (
                         <div className="absolute top-3 right-3 flex gap-1.5">
                           <button onClick={() => openAuthorModal(a)} className="p-1.5 rounded" style={{ backgroundColor: C.panelAlt, color: C.textDim }}><Edit className="w-3.5 h-3.5" /></button>
@@ -2328,7 +2328,7 @@ export default function App() {
                       </div>
                     )}
                     <h3 className="text-base font-extrabold">{a.title}</h3>
-                    <p className="text-sm leading-relaxed mt-2 mb-3" style={{ color: C.textDim }}>{a.details || 'No details provided.'}</p>
+                    <p className="text-sm leading-relaxed mt-2 mb-3 whitespace-pre-line" style={{ color: C.textDim }}>{a.details || 'No details provided.'}</p>
                     <p className="text-[10px] uppercase" style={{ color: C.accent }}>Posted by {a.author} &middot; {a.date}</p>
                     {canEditEverything && (
                       <div className="absolute top-4 right-4 flex gap-2">
@@ -2538,7 +2538,7 @@ export default function App() {
                             {a.quote && (
                               <div className="flex items-start gap-2 max-w-sm mt-4 mb-1">
                                 <Quote className="w-4 h-4 shrink-0" style={{ color: C.accent }} />
-                                <p className="text-sm italic" style={{ color: C.textDim }}>{a.quote}</p>
+                                <p className="text-sm italic whitespace-pre-line" style={{ color: C.textDim }}>{a.quote}</p>
                               </div>
                             )}
                           </div>
@@ -2723,7 +2723,7 @@ export default function App() {
                         <h3 className="text-lg font-extrabold">{activeQuiz.title}</h3>
                         {activeQuiz.items.map((item, idx) => (
                           <Card key={idx} className="p-4">
-                            <p className="text-sm font-semibold mb-3">{idx + 1}. {item.qText}</p>
+                            <p className="text-sm font-semibold mb-3 whitespace-pre-line">{idx + 1}. {item.qText}</p>
                             {item.type === 'Multiple Choice' ? (
                               <div className="space-y-2">
                                 {item.options.filter(Boolean).map((opt, oi) => (
