@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { cleanMediaUrl } from './utils/cleanMediaUrl';
 import {
   ShieldCheck, User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
   Megaphone, CheckCircle, Lock, Unlock, Menu, X,
@@ -560,61 +561,6 @@ const SettingsRow = ({ icon: Icon, label, desc, control }) => (
 );
 
 // permission modal -------------------------------------------------
-// Helper para linisin ang lumang sirang URL mula sa Database
-const cleanMediaUrl = (url) => {
-  if (!url || typeof url !== 'string') return '';
-
-  const TARGET_DOMAIN = 'https://rough-art-8c28.ecobseducation.workers.dev';
-
-  let clean = url.trim();
-
-  // If it's a blob preview URL, return empty (blob URLs are never valid for database storage)
-  if (clean.startsWith('blob:')) {
-    console.warn('[cleanMediaUrl] ⚠️ BLOB URL DETECTED - returning empty string to prevent database persistence:', clean);
-    return '';
-  }
-
-  // Try to parse as a full URL to extract and preserve the path
-  try {
-    const parsedUrl = new URL(clean);
-    console.log('[cleanMediaUrl] Parsed URL:', { hostname: parsedUrl.hostname, pathname: parsedUrl.pathname });
-    
-    // Extract the pathname (e.g., "/announcements/1788163390272_1w413y_flower-girl-live-wallpaper.mp4")
-    // This preserves the subfolder structure!
-    let pathname = parsedUrl.pathname;
-    
-    // Remove leading slash if present
-    if (pathname.startsWith('/')) {
-      pathname = pathname.substring(1);
-    }
-    
-    // Safely encode each path segment to handle spaces and special characters
-    // e.g., "announcements/my file.mp4" → "announcements/my%20file.mp4"
-    const encodedPath = pathname
-      .split('/')
-      .map(segment => encodeURIComponent(decodeURIComponent(segment)))
-      .join('/');
-    
-    const result = `${TARGET_DOMAIN}/${encodedPath}`;
-    console.log('[cleanMediaUrl] ✅ Full path preserved and encoded:', { original: clean, encoded: result });
-    return result;
-  } catch (e) {
-    // Fallback for raw path strings that aren't valid URLs
-    console.log('[cleanMediaUrl] 🔧 URL parsing failed, using fallback:', e.message);
-    
-    // Extract filename and encode it
-    const filename = clean.split('/').pop().split('?')[0];
-    if (!filename) {
-      console.warn('[cleanMediaUrl] ⚠️ Could not extract filename from URL:', clean);
-      return '';
-    }
-    
-    const encoded = encodeURIComponent(decodeURIComponent(filename));
-    const result = `${TARGET_DOMAIN}/${encoded}`;
-    console.log('[cleanMediaUrl] 🔧 Using filename fallback:', { original: clean, filename, encoded, result });
-    return result;
-  }
-};
 function PermissionModal({ open, label, onAllow, onDeny }) {
   if (!open) return null;
   return (
@@ -2328,7 +2274,7 @@ export default function App() {
                             {m.type === 'video' ? (
                               <>
                                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                                  <source src={cleanMediaUrl(m.url)} />
+                                  <source src={cleanMediaUrl(m.url)} type="video/mp4" />
                                   Your browser does not support the video tag.
                                 </video>
                                 <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,10,12,0.35)' }}>
@@ -2839,7 +2785,7 @@ export default function App() {
                         <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
                           {m.type === 'video' ? (
                             <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                              <source src={cleanMediaUrl(m.url)} />
+                              <source src={cleanMediaUrl(m.url)} type="video/mp4" />
                               Your browser does not support the video tag.
                             </video>
                           ) : (
@@ -3189,7 +3135,7 @@ export default function App() {
           <div className="max-w-3xl w-full max-h-[85vh] flex items-center justify-center" onClick={e => e.stopPropagation()}>
             {lightbox.type === 'video' ? (
               <video controls playsInline preload="metadata" style={{ width: '100%' }} className="max-w-full max-h-[85vh] rounded-xl">
-                <source src={cleanMediaUrl(lightbox.url)} />
+                <source src={cleanMediaUrl(lightbox.url)} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             ) : (
@@ -3220,7 +3166,7 @@ export default function App() {
               {viewerFile.kind === 'Image' && <img src={cleanMediaUrl(viewerFile.url)} alt={viewerFile.title || viewerFile.name} className="max-w-full max-h-[75vh] object-contain" />}
               {viewerFile.kind === 'Video' && (
                 <video controls playsInline preload="metadata" style={{ width: '100%' }} className="w-full h-full object-cover" muted>
-                  <source src={cleanMediaUrl(viewerFile.url)} />
+                  <source src={cleanMediaUrl(viewerFile.url)} type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
               )}
