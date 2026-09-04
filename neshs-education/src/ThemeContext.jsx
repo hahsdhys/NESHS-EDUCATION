@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 export const THEME_STORAGE_KEY = 'neshs_user_theme';
 export const COLOR_THEME_STORAGE_KEY = 'neshs_color_theme';
-const THEME_OPTIONS = new Set(['dark', 'light', 'system']);
+export const GLASS_INTENSITY_STORAGE_KEY = 'neshs_glass_intensity';
+const THEME_OPTIONS = new Set(['dark', 'light', 'glass', 'system']);
 
 const STATUS_COLORS = {
   success: '#2E9B62',
@@ -73,7 +74,7 @@ export const COLOR_THEMES = [
   }
 ];
 
-const COLOR_THEME_IDS = new Set(COLOR_THEMES.map(item => item.id));
+const COLOR_THEME_IDS = new Set(COLOR_THEMES.filter(item => !item.darkOnly).map(item => item.id));
 export const getColorTheme = id => COLOR_THEMES.find(item => item.id === id) || COLOR_THEMES[0];
 
 const readStoredTheme = () => {
@@ -94,6 +95,15 @@ const readStoredColorTheme = () => {
   }
 };
 
+const readStoredGlassIntensity = () => {
+  try {
+    const stored = Number(window.localStorage.getItem(GLASS_INTENSITY_STORAGE_KEY));
+    return Number.isFinite(stored) ? Math.min(100, Math.max(1, stored)) : 60;
+  } catch {
+    return 60;
+  }
+};
+
 const getSystemTheme = () => (
   typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
     ? 'dark'
@@ -105,6 +115,7 @@ const ThemeContext = createContext(null);
 export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState(readStoredTheme);
   const [colorTheme, setColorThemeState] = useState(readStoredColorTheme);
+  const [glassIntensity, setGlassIntensityState] = useState(readStoredGlassIntensity);
   const [systemTheme, setSystemTheme] = useState(getSystemTheme);
   const resolvedTheme = theme === 'system' ? systemTheme : theme;
 
@@ -119,17 +130,36 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     const root = document.documentElement;
+    const intensityRatio = glassIntensity / 100;
+    const glassValues = {
+      blur: `${4 + intensityRatio * 28}px`,
+      surfaceOpacity: 0.02 + intensityRatio * 0.12,
+      borderOpacity: 0.06 + intensityRatio * 0.16,
+      glowRadius: `${8 + intensityRatio * 20}px`,
+      glowOpacity: 0.12 + intensityRatio * 0.23,
+      orbOpacity: 0.05 + intensityRatio * 0.20,
+      saturate: `${110 + intensityRatio * 50}%`
+    };
     root.classList.toggle('dark', resolvedTheme === 'dark');
     root.dataset.theme = resolvedTheme;
-    root.dataset.colorTheme = colorTheme;
-    root.style.colorScheme = resolvedTheme;
+    root.dataset.colorTheme = theme === 'glass' ? 'glass-obsidian' : colorTheme;
+    root.dataset.glassMode = theme === 'glass' ? 'true' : 'false';
+    root.style.colorScheme = resolvedTheme === 'glass' ? 'dark' : resolvedTheme;
+    root.style.setProperty('--glass-blur', glassValues.blur);
+    root.style.setProperty('--glass-surface-opacity', glassValues.surfaceOpacity);
+    root.style.setProperty('--glass-border-opacity', glassValues.borderOpacity);
+    root.style.setProperty('--glass-glow-radius', glassValues.glowRadius);
+    root.style.setProperty('--glass-glow-opacity', glassValues.glowOpacity);
+    root.style.setProperty('--glass-orb-opacity', glassValues.orbOpacity);
+    root.style.setProperty('--glass-saturate', glassValues.saturate);
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
       window.localStorage.setItem(COLOR_THEME_STORAGE_KEY, colorTheme);
+      window.localStorage.setItem(GLASS_INTENSITY_STORAGE_KEY, String(glassIntensity));
     } catch {
       // Theme changes still apply for this session when storage is unavailable.
     }
-  }, [theme, colorTheme, resolvedTheme]);
+  }, [theme, colorTheme, glassIntensity, resolvedTheme]);
 
   const setTheme = nextTheme => {
     if (THEME_OPTIONS.has(nextTheme)) setThemeState(nextTheme);
@@ -139,7 +169,12 @@ export function ThemeProvider({ children }) {
     if (COLOR_THEME_IDS.has(nextTheme)) setColorThemeState(nextTheme);
   };
 
-  const value = useMemo(() => ({ theme, resolvedTheme, colorTheme, setTheme, setColorTheme }), [theme, resolvedTheme, colorTheme]);
+  const setGlassIntensity = nextIntensity => {
+    const value = Number(nextIntensity);
+    if (Number.isFinite(value)) setGlassIntensityState(Math.min(100, Math.max(1, value)));
+  };
+
+  const value = useMemo(() => ({ theme, resolvedTheme, colorTheme, setTheme, setColorTheme, glassIntensity, setGlassIntensity }), [theme, resolvedTheme, colorTheme, glassIntensity]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 

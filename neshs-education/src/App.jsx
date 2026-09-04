@@ -8,7 +8,7 @@ import {
   Download, Bell, FolderPlus, Folder, ArrowRight, MapPin,
   Plus, Edit, Trash2, Image as ImageIcon, FileText, Upload, ChevronLeft,
   Play, ScanLine, KeyRound, Quote, GraduationCap,
-  Settings, ExternalLink, Loader2, Sun, Moon, Eye, EyeOff, Globe,
+  Settings, ExternalLink, Loader2, Sun, Moon, Sparkles, Eye, EyeOff, Globe,
   Zap, FolderCog, ChevronDown, Info
 } from 'lucide-react';
 
@@ -403,13 +403,15 @@ export default function App() {
   const motionTransition = reducedMotion ? '' : 'transition-all duration-300';
   const motionBounce = reducedMotion ? '' : 'animate-bounce';
   const hoverScale = reducedMotion ? '' : 'hover:scale-105';
-  const { theme, resolvedTheme, setTheme: setThemeMode, colorTheme, setColorTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme: setThemeMode, colorTheme, setColorTheme, glassIntensity, setGlassIntensity } = useTheme();
 
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
-  const selectedColorTheme = getColorTheme(colorTheme);
+  const selectedColorTheme = theme === 'glass' ? getColorTheme('glass-obsidian') : getColorTheme(colorTheme);
   Object.assign(C, selectedColorTheme[resolvedTheme] || selectedColorTheme.dark);
-  const toggleTheme = () => setThemeMode(resolvedTheme === 'dark' ? 'light' : 'dark');
+  const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' || theme === 'system' ? 'glass' : 'light';
+  const toggleTheme = () => setThemeMode(nextTheme);
+  const modeLabel = theme === 'glass' ? 'Glass Obsidian' : theme === 'dark' ? 'Dark mode' : 'Light mode';
 
   const [toast, setToast] = useState(null);
   const triggerToast = (message, type = 'info') => {
@@ -1631,8 +1633,10 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
-        <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-          {resolvedTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: theme === 'glass' ? '#6E5BFF' : C.accent }} title={modeLabel} aria-label={modeLabel}>
+          <span key={theme} className="theme-mode-icon inline-flex animate-[theme-icon-in_200ms_ease-out]">
+            {theme === 'glass' ? <Sparkles className="w-4 h-4" /> : theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+          </span>
         </button>
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
@@ -2010,8 +2014,10 @@ export default function App() {
               </p>
             </div>
 
-            <button onClick={toggleTheme} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-              {resolvedTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: theme === 'glass' ? '#6E5BFF' : C.accent }} title={modeLabel} aria-label={modeLabel}>
+              <span key={theme} className="theme-mode-icon inline-flex animate-[theme-icon-in_200ms_ease-out]">
+                {theme === 'glass' ? <Sparkles className="w-4 h-4" /> : theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              </span>
             </button>
             <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }} title="Settings & Privacy">
               <Settings className="w-4 h-4" />
@@ -2965,7 +2971,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-11">
-                  {COLOR_THEMES.map(item => {
+                  {COLOR_THEMES.filter(item => !item.darkOnly).map(item => {
                     const active = colorTheme === item.id;
                     const preview = item[resolvedTheme] || item.dark;
                     return (
@@ -2988,18 +2994,29 @@ export default function App() {
                 </div>
               </div>
 
-              <SettingsRow
-                icon={resolvedTheme === 'dark' ? Moon : Sun}
-                label="Display Mode"
-                desc="Choose light mode, dark mode, or follow your device preference."
-                control={
-                  <Select value={theme} onChange={e => setThemeMode(e.target.value)} className="!w-40 !py-2 text-xs">
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                    <option value="system">System Default</option>
-                  </Select>
-                }
-              />
+              {theme === 'glass' && (
+                <div className="py-3.5" style={{ borderBottom: `1px solid ${C.border}` }}>
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div>
+                      <p className="text-xs font-bold">Glass Intensity: {glassIntensity}%</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>Adjust blur, translucency, glow, and background orbs in real time.</p>
+                    </div>
+                    <Sparkles className="w-4 h-4 shrink-0" style={{ color: '#6E5BFF' }} />
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    value={glassIntensity}
+                    onChange={e => setGlassIntensity(e.target.value)}
+                    className="w-full accent-[#6E5BFF]"
+                    aria-label="Glass Intensity"
+                  />
+                  <button type="button" onClick={() => setGlassIntensity(60)} className="mt-2 text-[10px] font-bold" style={{ color: '#8172FF' }}>
+                    Reset to default (60%)
+                  </button>
+                </div>
+              )}
 
               <div className="flex items-start gap-2 mt-5 mb-4 p-3 rounded-xl" style={{ backgroundColor: C.accentDim }}>
                 <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.accent }} />

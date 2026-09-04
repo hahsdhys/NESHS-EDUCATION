@@ -45,7 +45,7 @@ html[data-color-theme='glass-obsidian'] body::after {
 	border-radius: 9999px;
 	pointer-events: none;
 	filter: blur(110px);
-	opacity: 0.16;
+	opacity: var(--glass-orb-opacity);
 	z-index: 0;
 }
 
@@ -70,15 +70,15 @@ html[data-color-theme='glass-obsidian'] #root {
 html[data-color-theme='glass-obsidian'] .glass-surface,
 html[data-color-theme='glass-obsidian'] aside,
 html[data-color-theme='glass-obsidian'] header {
-	background-color: rgba(255, 255, 255, 0.06) !important;
-	backdrop-filter: blur(20px) saturate(140%);
-	-webkit-backdrop-filter: blur(20px) saturate(140%);
-	border-color: rgba(255, 255, 255, 0.12) !important;
-	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+	background-color: rgba(255, 255, 255, var(--glass-surface-opacity)) !important;
+	backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+	-webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+	border-color: rgba(255, 255, 255, var(--glass-border-opacity)) !important;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
 html[data-color-theme='glass-obsidian'] aside {
-	background-color: rgba(255, 255, 255, 0.04) !important;
+	background-color: rgba(255, 255, 255, calc(var(--glass-surface-opacity) * 0.67)) !important;
 }
 
 html[data-color-theme='glass-obsidian'] .glass-button {
@@ -108,14 +108,19 @@ html[data-color-theme='glass-obsidian'] img.rounded-xl {
 
 html[data-color-theme='glass-obsidian'] aside button[style*='110,91,255'],
 html[data-color-theme='glass-obsidian'] aside button[style*='6E5BFF'] {
-	box-shadow: 0 0 16px rgba(110, 91, 255, 0.25);
+	box-shadow: 0 0 var(--glass-glow-radius) rgba(110, 91, 255, var(--glass-glow-opacity));
+}
+
+@keyframes theme-icon-in {
+	from { opacity: 0; transform: rotate(-25deg) scale(0.75); }
+	to { opacity: 1; transform: rotate(0deg) scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
 	html[data-color-theme='glass-obsidian'] .glass-surface,
 	html[data-color-theme='glass-obsidian'] aside,
 	html[data-color-theme='glass-obsidian'] header {
-	backdrop-filter: blur(12px) saturate(120%);
-	-webkit-backdrop-filter: blur(12px) saturate(120%);
+	backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-saturate));
+	-webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-saturate));
 	}
 }
