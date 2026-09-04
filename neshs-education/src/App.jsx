@@ -2970,7 +2970,7 @@ export default function App() {
                     <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>Choose a color theme. Light and dark mode stay independent.</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-11">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pl-11">
                   {COLOR_THEMES.filter(item => !item.darkOnly).map(item => {
                     const active = colorTheme === item.id;
                     const preview = item[resolvedTheme] || item.dark;
