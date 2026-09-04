@@ -2983,8 +2983,9 @@ export default function App() {
                         style={{ backgroundColor: preview.panel, border: active ? `2px solid ${preview.accent}` : `1px solid ${preview.border}` }}
                       >
                         <div className="flex items-center gap-1.5 mb-2">
-                          <span className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: item.swatch, border: `1px solid ${preview.border}` }} />
-                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: preview.accent }} />
+                          <span className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: item.vivid, border: `1px solid ${preview.border}` }} title="Vivid accent" />
+                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: item.nearWhite, border: `1px solid ${preview.border}` }} title="Near-white neutral" />
+                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: item.nearBlack, border: `1px solid ${preview.border}` }} title="Near-black neutral" />
                           {active && <CheckCircle className="w-3.5 h-3.5 ml-auto shrink-0" style={{ color: preview.accent }} />}
                         </div>
                         <p className="text-[10px] font-bold" style={{ color: preview.text }}>{item.label}</p>
