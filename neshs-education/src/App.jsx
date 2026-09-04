@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { cleanMediaUrl } from './utils/cleanMediaUrl';
-import { useTheme } from './ThemeContext.jsx';
+import { COLOR_THEMES, getColorTheme, useTheme } from './ThemeContext.jsx';
 import {
   ShieldCheck, User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
   Megaphone, CheckCircle, Lock, Unlock, Menu, X,
@@ -12,232 +12,8 @@ import {
   Zap, FolderCog, ChevronDown, Info
 } from 'lucide-react';
 
-// ============================================================
-// PALETTES — seven themes selectable from Settings, each with its own
-// distinct mood and use-case rather than variations on one template.
-// ============================================================
-
-// Original NESHS identity — fluorescent cyan on deep blue-charcoal.
-const DARK_PALETTE = {
-  bg: '#001619',
-  panel: '#031f23',
-  panelAlt: '#062a2f',
-  border: '#0d3a40',
-  accent: '#50E8F4',
-  accentDim: 'rgba(80,232,244,0.14)',
-  highlight: '#C7F8FE',
-  text: '#EAFEFC',
-  textDim: '#7FB9C0',
-  danger: '#FF7A7A',
-  gold: '#F4D06F'
-};
-
-// Same identity, inverted for daylight use.
-const LIGHT_PALETTE = {
-  bg: '#F2FBFC',
-  panel: '#FFFFFF',
-  panelAlt: '#E7F8FA',
-  border: '#CDEEF2',
-  accent: '#0A8CA3',
-  accentDim: 'rgba(10,140,163,0.10)',
-  highlight: '#0A8CA3',
-  text: '#052C31',
-  textDim: '#4C7B81',
-  danger: '#C7433F',
-  gold: '#9A6E00'
-};
-
-// Ember Dusk — warm terracotta and burnt-orange on near-black, like a
-// campfire after sunset. Cozy and high-energy rather than corporate.
-const EMBER_DUSK_PALETTE = {
-  bg: '#160F0C',
-  panel: '#1F1512',
-  panelAlt: '#2A1C17',
-  border: 'rgba(255,150,90,0.14)',
-  accent: '#FF7A45',
-  accentDim: 'rgba(255,122,69,0.16)',
-  highlight: '#FFB088',
-  text: '#FBEDE6',
-  textDim: '#B08D7E',
-  danger: '#FF5D5D',
-  gold: '#F2C14E'
-};
-
-// Ember Dawn — the light half of the Ember family: same terracotta accent,
-// warm cream/paper background instead of near-black, like morning light
-// through canvas instead of a campfire at night.
-const EMBER_DAWN_PALETTE = {
-  bg: '#FBF1E8',
-  panel: '#FFFFFF',
-  panelAlt: '#F4E3D4',
-  border: '#EAD0B8',
-  accent: '#E8632B',
-  accentDim: 'rgba(232,99,43,0.12)',
-  highlight: '#FF8A50',
-  text: '#2E1B12',
-  textDim: '#8A6650',
-  danger: '#C7402E',
-  gold: '#B4791E'
-};
-
-// Botanical Paper — warm ivory paper tones with deep moss green, meant to
-// feel like a printed yearbook page rather than a screen.
-const BOTANICAL_PAPER_PALETTE = {
-  bg: '#F7F3E9',
-  panel: '#FFFFFF',
-  panelAlt: '#EFE9D8',
-  border: '#DED3B8',
-  accent: '#3F6B4A',
-  accentDim: 'rgba(63,107,74,0.12)',
-  highlight: '#5C8A67',
-  text: '#2B2A22',
-  textDim: '#6E6A55',
-  danger: '#B5443A',
-  gold: '#A9762F'
-};
-
-// Botanical Night — the dark half of the Botanical family: same moss-green
-// accent, deep forest-shadow background instead of ivory paper, like the
-// same page read by lamplight.
-const BOTANICAL_NIGHT_PALETTE = {
-  bg: '#12160F',
-  panel: '#1A2016',
-  panelAlt: '#212A1B',
-  border: 'rgba(140,180,110,0.14)',
-  accent: '#7BB570',
-  accentDim: 'rgba(123,181,112,0.16)',
-  highlight: '#A3D693',
-  text: '#EAF2E3',
-  textDim: '#8FA684',
-  danger: '#E06B5B',
-  gold: '#D4B45E'
-};
-
-// Ink & Newsprint — near-monochrome grayscale with a single crimson accent,
-// styled after a broadsheet newspaper masthead. Deliberately restrained.
-const INK_NEWSPRINT_PALETTE = {
-  bg: '#EDEDEA',
-  panel: '#FFFFFF',
-  panelAlt: '#E2E2DD',
-  border: '#CBCBC3',
-  accent: '#B3222B',
-  accentDim: 'rgba(179,34,43,0.10)',
-  highlight: '#8A1B22',
-  text: '#1C1C1A',
-  textDim: '#63635C',
-  danger: '#B3222B',
-  gold: '#8C7A3E'
-};
-
-// Ink & Midnight — the dark half of the Ink family: same crimson accent,
-// true charcoal/black instead of newsprint gray, like reading the same
-// masthead under a single desk lamp at night.
-const INK_MIDNIGHT_PALETTE = {
-  bg: '#141414',
-  panel: '#1C1C1C',
-  panelAlt: '#242424',
-  border: 'rgba(255,255,255,0.10)',
-  accent: '#E5484D',
-  accentDim: 'rgba(229,72,77,0.16)',
-  highlight: '#FF6E71',
-  text: '#EDEDEA',
-  textDim: '#8C8C87',
-  danger: '#E5484D',
-  gold: '#C7A968'
-};
-
-// Terminal Amber — a retro CRT monitor: matte black with phosphor-amber
-// text, evoking old computer labs rather than a modern SaaS dashboard.
-const TERMINAL_AMBER_PALETTE = {
-  bg: '#0C0A08',
-  panel: '#161210',
-  panelAlt: '#1F1A16',
-  border: 'rgba(255,176,59,0.18)',
-  accent: '#FFB03B',
-  accentDim: 'rgba(255,176,59,0.14)',
-  highlight: '#FFD37A',
-  text: '#F5E4C3',
-  textDim: '#9C8767',
-  danger: '#FF6B4A',
-  gold: '#FFB03B'
-};
-
-// Terminal Parchment — the light half of the Terminal family: the same
-// phosphor-amber accent reimagined as amber ink on aged paper, like a
-// printed teletype log instead of a glowing CRT screen.
-const TERMINAL_PARCHMENT_PALETTE = {
-  bg: '#F2E9D8',
-  panel: '#FAF4E8',
-  panelAlt: '#EBDFC5',
-  border: '#D9C79E',
-  accent: '#B5730A',
-  accentDim: 'rgba(181,115,10,0.12)',
-  highlight: '#8F5A08',
-  text: '#2E2410',
-  textDim: '#7A6B47',
-  danger: '#B4432A',
-  gold: '#B5730A'
-};
-
-// Reef Coral — bright lagoon blue-green with coral-pink accents, airy and
-// playful, styled after tide pools rather than an admin panel.
-const REEF_CORAL_PALETTE = {
-  bg: '#EAFBF9',
-  panel: '#FFFFFF',
-  panelAlt: '#D8F5F0',
-  border: '#BEE9E1',
-  accent: '#FF6F91',
-  accentDim: 'rgba(255,111,145,0.12)',
-  highlight: '#12A594',
-  text: '#0B3B37',
-  textDim: '#4F8A82',
-  danger: '#E0483E',
-  gold: '#D99A2B'
-};
-
-// Reef Abyss — the dark half of the Reef family: same coral-pink accent,
-// deep ocean-teal background instead of a bright lagoon, like the same
-// tide pool seen at night.
-const REEF_ABYSS_PALETTE = {
-  bg: '#071D1B',
-  panel: '#0D2926',
-  panelAlt: '#123531',
-  border: 'rgba(255,111,145,0.14)',
-  accent: '#FF7FA0',
-  accentDim: 'rgba(255,127,160,0.16)',
-  highlight: '#5FE0C6',
-  text: '#DFFBF5',
-  textDim: '#6FA79E',
-  danger: '#FF6B5C',
-  gold: '#E0B44A'
-};
-
-// Every selectable theme, in the order shown in Settings. id is what's stored
-// in settings.theme; 'dark' and 'light' ids are kept unchanged so existing
-// saved preferences keep working. isLight marks which half of its family a
-// theme is; pairId points at its own light/dark counterpart within the same
-// family, which is what the header's quick Sun/Moon toggle flips between —
-// e.g. on Ember Dusk it flips to Ember Dawn, not to NESHS Dark/Light.
-const THEMES = [
-  { id: 'dark', label: 'NESHS Dark', palette: DARK_PALETTE, isLight: false, pairId: 'light' },
-  { id: 'light', label: 'NESHS Light', palette: LIGHT_PALETTE, isLight: true, pairId: 'dark' },
-  { id: 'emberDusk', label: 'Ember Dusk', palette: EMBER_DUSK_PALETTE, isLight: false, pairId: 'emberDawn' },
-  { id: 'emberDawn', label: 'Ember Dawn', palette: EMBER_DAWN_PALETTE, isLight: true, pairId: 'emberDusk' },
-  { id: 'botanicalPaper', label: 'Botanical Paper', palette: BOTANICAL_PAPER_PALETTE, isLight: true, pairId: 'botanicalNight' },
-  { id: 'botanicalNight', label: 'Botanical Night', palette: BOTANICAL_NIGHT_PALETTE, isLight: false, pairId: 'botanicalPaper' },
-  { id: 'inkNewsprint', label: 'Ink & Newsprint', palette: INK_NEWSPRINT_PALETTE, isLight: true, pairId: 'inkMidnight' },
-  { id: 'inkMidnight', label: 'Ink & Midnight', palette: INK_MIDNIGHT_PALETTE, isLight: false, pairId: 'inkNewsprint' },
-  { id: 'terminalAmber', label: 'Terminal Amber', palette: TERMINAL_AMBER_PALETTE, isLight: false, pairId: 'terminalParchment' },
-  { id: 'terminalParchment', label: 'Terminal Parchment', palette: TERMINAL_PARCHMENT_PALETTE, isLight: true, pairId: 'terminalAmber' },
-  { id: 'reefCoral', label: 'Reef Coral', palette: REEF_CORAL_PALETTE, isLight: true, pairId: 'reefAbyss' },
-  { id: 'reefAbyss', label: 'Reef Abyss', palette: REEF_ABYSS_PALETTE, isLight: false, pairId: 'reefCoral' }
-];
-const getThemePalette = (themeId) => (THEMES.find(t => t.id === themeId) || THEMES[0]).palette;
-
-// Mutated in place (not reassigned) so every component that reads C.xxx during
-// render — including the atoms defined below, outside the App component —
-// picks up the active theme without needing prop-drilling.
-const C = { ...DARK_PALETTE };
+// Mutated in place so the shared UI atoms read the active provider palette.
+const C = {};
 
 const SCHOOL_NAME = 'NASUGBU EAST SENIOR HIGH SCHOOL';
 const SCHOOL_ADDRESS = 'BARANGAY LUMBANGAN, NASUGBU, BATANGAS';
@@ -492,7 +268,7 @@ const Btn = ({ children, onClick, variant = 'solid', className = '', type = 'but
       : variant === 'ghost'
       ? { backgroundColor: 'transparent', color: C.accent, border: `1px solid ${C.border}` }
       : variant === 'danger'
-      ? { backgroundColor: 'rgba(255,122,122,0.12)', color: C.danger, border: '1px solid rgba(255,122,122,0.3)' }
+      ? { backgroundColor: C.dangerDim, color: C.danger, border: `1px solid ${C.dangerBorder}` }
       : { backgroundColor: C.panelAlt, color: C.text, border: `1px solid ${C.border}` };
   return (
     <button type={type} disabled={disabled} onClick={onClick} className={`${base} ${className}`} style={style}>
@@ -565,7 +341,7 @@ const SettingsRow = ({ icon: Icon, label, desc, control }) => (
 function PermissionModal({ open, label, onAllow, onDeny }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
       <Card className="w-full max-w-sm p-6 text-center">
         <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: C.accentDim }}>
           <Lock className="w-6 h-6" style={{ color: C.accent }} />
@@ -627,11 +403,11 @@ export default function App() {
   const motionTransition = reducedMotion ? '' : 'transition-all duration-300';
   const motionBounce = reducedMotion ? '' : 'animate-bounce';
   const hoverScale = reducedMotion ? '' : 'hover:scale-105';
-  const { theme, resolvedTheme, setTheme: setThemeMode } = useTheme();
+  const { theme, resolvedTheme, setTheme: setThemeMode, colorTheme, setColorTheme } = useTheme();
 
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
-  Object.assign(C, getThemePalette(resolvedTheme));
+  Object.assign(C, getColorTheme(colorTheme)[resolvedTheme]);
   const toggleTheme = () => setThemeMode(resolvedTheme === 'dark' ? 'light' : 'dark');
 
   const [toast, setToast] = useState(null);
@@ -1830,7 +1606,7 @@ export default function App() {
     if (saveError) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center gap-4 font-sans p-6 text-center" style={{ backgroundColor: C.bg, color: C.text }}>
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255,122,122,0.12)' }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: C.dangerDim }}>
             <Lock className="w-6 h-6" style={{ color: C.danger }} />
           </div>
           <p className="text-sm font-bold max-w-sm">{saveError}</p>
@@ -1872,7 +1648,7 @@ export default function App() {
               <button onClick={() => { setAuthMode('signup'); resetWizard(); }} className="flex-1 py-2 text-xs font-bold rounded-lg" style={authMode === 'signup' ? { backgroundColor: C.accent, color: C.bg } : { color: C.textDim }}>Sign Up</button>
             </div>
 
-            {authError && <div className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ backgroundColor: 'rgba(255,122,122,0.1)', border: '1px solid rgba(255,122,122,0.3)', color: C.danger }}>{authError}</div>}
+            {authError && <div className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ backgroundColor: C.dangerDim, border: `1px solid ${C.dangerBorder}`, color: C.danger }}>{authError}</div>}
 
             {authMode === 'signin' && (
               <form onSubmit={handleSignIn} className="space-y-4">
@@ -2046,7 +1822,7 @@ export default function App() {
         </div>
       )}
       {saveError && (
-        <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-xs" style={{ backgroundColor: 'rgba(255,122,122,0.14)', border: `1px solid ${C.danger}`, color: C.danger }}>
+        <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-xs" style={{ backgroundColor: C.dangerDim, border: `1px solid ${C.danger}`, color: C.danger }}>
           {saveError}
         </div>
       )}
@@ -2056,7 +1832,7 @@ export default function App() {
           devices. Only shown to creator/editor since they're the ones who can
           fix it, and only once they're past the login screen. */}
       {!supabaseConfigured && canEditEverything && (
-        <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-xs" style={{ backgroundColor: 'rgba(244,208,111,0.14)', border: `1px solid ${C.gold}`, color: C.gold }}>
+        <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-xs" style={{ backgroundColor: C.warningDim, border: `1px solid ${C.warningBorder}`, color: C.warning }}>
           Supabase isn't configured — data and online users are only visible on this device. Add your project URL and anon key to go live for everyone.
         </div>
       )}
@@ -2067,7 +1843,7 @@ export default function App() {
           "uploads vanish" bug. Dismissible since it's a persistent state
           flag, not a one-off toast, and would otherwise block the view. */}
       {storageWarning && canEditEverything && (
-        <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-sm flex items-start gap-2" style={{ backgroundColor: 'rgba(255,122,122,0.14)', border: `1px solid ${C.danger}`, color: C.danger }}>
+        <div className="fixed bottom-6 left-6 z-[400] px-4 py-2.5 rounded-xl text-[11px] font-semibold max-w-sm flex items-start gap-2" style={{ backgroundColor: C.dangerDim, border: `1px solid ${C.danger}`, color: C.danger }}>
           <span className="flex-1">{storageWarning}</span>
           <button onClick={() => setStorageWarning(null)} className="shrink-0"><X className="w-3.5 h-3.5" /></button>
         </div>
@@ -2239,7 +2015,7 @@ export default function App() {
             <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }} title="Settings & Privacy">
               <Settings className="w-4 h-4" />
             </button>
-            <button onClick={handleLogout} className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(255,122,122,0.1)', border: '1px solid rgba(255,122,122,0.25)', color: C.danger }}><LogOut className="w-4 h-4" /></button>
+            <button onClick={handleLogout} className="p-2 rounded-lg" style={{ backgroundColor: C.dangerDim, border: `1px solid ${C.dangerBorder}`, color: C.danger }}><LogOut className="w-4 h-4" /></button>
           </div>
         </header>
 
@@ -2344,7 +2120,7 @@ export default function App() {
                                   <source src={cleanMediaUrl(m.url)} />
                                   Your browser does not support the video tag.
                                 </video>
-                                <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,10,12,0.35)' }}>
+                                <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: C.mediaOverlay }}>
                                   <Play className="w-6 h-6" style={{ color: C.accent }} />
                                 </div>
                               </>
@@ -2523,7 +2299,7 @@ export default function App() {
                   const expanded = expandedAchieverId === a.id;
                   const achievements = a.achievements || [];
                   return (
-                    <Card key={a.id} className="overflow-hidden" style={{ borderColor: 'rgba(244,208,111,0.3)' }}>
+                    <Card key={a.id} className="overflow-hidden" style={{ borderColor: C.warningBorder }}>
                       {/* Header row toggles expand/collapse. Buttons inside stop propagation
                           explicitly so their own click handlers fire without also toggling
                           the card — this is the piece that was broken before. */}
@@ -2853,7 +2629,7 @@ export default function App() {
 
       {/* ANNOUNCEMENT MODAL */}
       {annModal.open && annModal.data && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-extrabold">{annModal.data.id ? 'Edit Article' : 'Create Article/News'}</h3>
@@ -2887,7 +2663,7 @@ export default function App() {
                           ) : (
                             <img src={cleanMediaUrl(m.url)} alt={m.name} className="w-full h-full object-cover" />
                           )}
-                          <button onClick={() => removeAnnouncementMedia(m.id)} className="absolute top-1 right-1 p-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,10,12,0.7)', color: C.danger }}><X className="w-3 h-3" /></button>
+                          <button onClick={() => removeAnnouncementMedia(m.id)} className="absolute top-1 right-1 p-0.5 rounded-full" style={{ backgroundColor: C.backdrop, color: C.danger }}><X className="w-3 h-3" /></button>
                         </div>
                       ))}
                     </div>
@@ -2903,7 +2679,7 @@ export default function App() {
 
       {/* ACHIEVER MODAL */}
       {achieverModal.open && achieverModal.data && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-extrabold">{achieverModal.data.id ? 'Edit Achiever' : 'Add Achiever'}</h3>
@@ -2925,7 +2701,7 @@ export default function App() {
 
       {/* ADD/EDIT AUTHOR MODAL */}
       {authorModal.open && authorModal.data && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-extrabold">{authorModal.data.id ? 'Edit Author' : 'Add Author'}</h3>
@@ -2947,7 +2723,7 @@ export default function App() {
 
       {/* ONLINE PANEL — who's currently signed in, with a live count and a close button. */}
       {onlinePanelOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-sm max-h-[80vh] flex flex-col">
             <div className="flex justify-between items-center p-6 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
               <div>
@@ -2995,7 +2771,7 @@ export default function App() {
 
       {/* SECTIONS PANEL */}
       {sectionPanelOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-extrabold">Manage Sections</h3>
@@ -3039,7 +2815,7 @@ export default function App() {
 
       {/* ADD FOLDER MODAL */}
       {addFolderOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-sm p-6">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-extrabold">{addFolderLockedModule ? 'New Upload Group' : 'Add Folder'}</h3>
@@ -3047,7 +2823,7 @@ export default function App() {
             </div>
 
             {folderError && (
-              <div className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ backgroundColor: 'rgba(255,122,122,0.1)', border: '1px solid rgba(255,122,122,0.3)', color: C.danger }}>{folderError}</div>
+              <div className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ backgroundColor: C.dangerDim, border: `1px solid ${C.dangerBorder}`, color: C.danger }}>{folderError}</div>
             )}
 
             {addFolderLockedModule ? (
@@ -3099,7 +2875,7 @@ export default function App() {
       )}
 
       {folderRenameModal.open && (
-        <div className="fixed inset-0 z-[290] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[290] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-sm p-6">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-extrabold">Rename Folder</h3>
@@ -3115,7 +2891,7 @@ export default function App() {
 
       {/* SETTINGS PANEL — fully wired, functional preferences (was previously a dead button) */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center p-6 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
               <div className="flex items-center gap-2.5">
@@ -3177,9 +2953,43 @@ export default function App() {
                 control={<Toggle checked={settings.autoDownload} onChange={v => handleSettingChange('autoDownload', v)} reducedMotion={reducedMotion} />}
               />
 
+              <div className="py-3.5" style={{ borderBottom: `1px solid ${C.border}` }}>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: C.accentDim }}>
+                    <Sun className="w-4 h-4" style={{ color: C.accent }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold">Theme</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>Choose a color theme. Light and dark mode stay independent.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-11">
+                  {COLOR_THEMES.map(item => {
+                    const active = colorTheme === item.id;
+                    const preview = item[resolvedTheme];
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setColorTheme(item.id)}
+                        aria-pressed={active}
+                        className={`text-left p-2.5 rounded-xl ${reducedMotion ? '' : 'transition-all hover:scale-[1.02]'}`}
+                        style={{ backgroundColor: preview.panel, border: active ? `2px solid ${preview.accent}` : `1px solid ${preview.border}` }}
+                      >
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: item.swatch, border: `1px solid ${preview.border}` }} />
+                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: preview.accent }} />
+                          {active && <CheckCircle className="w-3.5 h-3.5 ml-auto shrink-0" style={{ color: preview.accent }} />}
+                        </div>
+                        <p className="text-[10px] font-bold" style={{ color: preview.text }}>{item.label}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <SettingsRow
                 icon={resolvedTheme === 'dark' ? Moon : Sun}
-                label="Theme"
+                label="Display Mode"
                 desc="Choose light mode, dark mode, or follow your device preference."
                 control={
                   <Select value={theme} onChange={e => setThemeMode(e.target.value)} className="!w-40 !py-2 text-xs">
@@ -3205,7 +3015,7 @@ export default function App() {
 
       {/* QUIZ RESULT CONFIRMATION */}
       {lastResult && (
-        <div className="fixed inset-0 z-[280] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[280] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-sm p-6 text-center">
             <CheckCircle className="w-12 h-12 mx-auto mb-4" style={{ color: C.accent }} />
             <h3 className="text-base font-bold mb-1">Quiz Submitted</h3>
@@ -3218,7 +3028,7 @@ export default function App() {
 
       {/* MEDIA LIGHTBOX */}
       {lightbox && (
-        <div className="fixed inset-0 z-[260] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.94)' }} onClick={() => setLightbox(null)}>
+        <div className="fixed inset-0 z-[260] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }} onClick={() => setLightbox(null)}>
           <button onClick={() => setLightbox(null)} className="absolute top-5 right-5 p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, color: C.text }}><X className="w-5 h-5" /></button>
           <div className="max-w-3xl w-full max-h-[85vh] flex items-center justify-center" onClick={e => e.stopPropagation()}>
             {lightbox.type === 'video' ? (
@@ -3235,7 +3045,7 @@ export default function App() {
 
       {/* PROJECT FILE VIEWER — opens/plays/views on-site, with an external-open option */}
       {viewerFile && (
-        <div className="fixed inset-0 z-[260] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.94)' }} onClick={() => setViewerFile(null)}>
+        <div className="fixed inset-0 z-[260] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }} onClick={() => setViewerFile(null)}>
           <div className="w-full max-w-3xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-bold truncate pr-4" style={{ color: C.text }}>{viewerFile.title || viewerFile.name}</p>
@@ -3279,7 +3089,7 @@ export default function App() {
 
       {/* RENAME / REPLACE FILE MODAL */}
       {renameModal.open && (
-        <div className="fixed inset-0 z-[290] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,10,12,0.85)' }}>
+        <div className="fixed inset-0 z-[290] flex items-center justify-center p-4" style={{ backgroundColor: C.backdrop }}>
           <Card className="w-full max-w-sm p-6">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-extrabold">Rename File</h3>
