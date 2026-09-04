@@ -28,49 +28,36 @@ const withTokens = palette => ({
   mediaOverlay: palette.mediaOverlay || 'rgba(0,0,0,0.35)'
 });
 
+const glassTokens = palette => withTokens({
+  ...palette,
+  bg: 'transparent',
+  panel: palette.glassSurface,
+  panelAlt: palette.glassSurface,
+  border: palette.glassBorder,
+  accentDim: palette.glassActive,
+  highlight: palette.primaryHover,
+  backdrop: palette.glassBackdrop,
+  mediaOverlay: palette.glassMediaOverlay
+});
+
 export const COLOR_THEMES = [
   {
-    id: 'ocean-teal', label: 'Ocean Teal', swatch: '#0A8CA3',
-    light: withTokens({ bg: '#F2FBFC', panel: '#FFFFFF', panelAlt: '#E7F8FA', border: '#CDEEF2', accent: '#0A8CA3', accentDim: 'rgba(10,140,163,0.10)', highlight: '#08798D', text: '#052C31', textDim: '#4C7B81' }),
-    dark: withTokens({ bg: '#001619', panel: '#031F23', panelAlt: '#062A2F', border: '#0D3A40', accent: '#50E8F4', accentDim: 'rgba(80,232,244,0.14)', highlight: '#8AF2F8', text: '#EAFEFC', textDim: '#7FB9C0' })
+    id: 'cyan-pulse', label: 'Cyan Pulse', swatch: '#14B8C4',
+    light: withTokens({ bg: '#F3FDFE', panel: '#FFFFFF', panelAlt: '#EAFBFC', border: '#D3F3F6', accent: '#14B8C4', accentDim: 'rgba(20,184,196,0.12)', highlight: '#0F97A1', text: '#06272B', textDim: '#4E7A80' }),
+    dark: withTokens({ bg: '#001619', panel: '#04262B', panelAlt: '#07343A', border: '#0D3A40', accent: '#50E8F4', accentDim: 'rgba(80,232,244,0.16)', highlight: '#7CEFF8', text: '#C7F8FE', textDim: '#7FB4BB' }),
+    glass: glassTokens({ bg: 'transparent', accent: '#50E8F4', primaryHover: '#7CEFF8', text: '#EFFCFE', textDim: '#A9D8DD', gold: '#14B8C4', glassGradient: 'radial-gradient(circle at 20% 0%, #04343A 0%, #001619 55%, #000B0D 100%)', glassOrbOne: '#50E8F4', glassOrbTwo: '#14B8C4', glassSurface: 'rgba(80,232,244,0.06)', glassSurfaceRgb: '80,232,244', glassBorder: 'rgba(80,232,244,0.15)', glassBorderRgb: '80,232,244', glassActive: 'rgba(80,232,244,0.18)', glassGlow: 'rgba(80,232,244,0.25)', glassBackdrop: 'rgba(0,11,13,0.82)', glassMediaOverlay: 'rgba(0,11,13,0.35)' })
   },
   {
-    id: 'sunset-coral', label: 'Sunset Coral', swatch: '#F4623A',
-    light: withTokens({ bg: '#FFF8F5', panel: '#FFFFFF', panelAlt: '#FFF0E9', border: '#F2DDD4', accent: '#F4623A', accentDim: 'rgba(244,98,58,0.12)', highlight: '#D94E2A', text: '#2B1B14', textDim: '#7A6156' }),
-    dark: withTokens({ bg: '#1A1210', panel: '#241814', panelAlt: '#302019', border: '#3A2A22', accent: '#FF7A50', accentDim: 'rgba(255,122,80,0.16)', highlight: '#FF8F6B', text: '#FBEDE6', textDim: '#C9A896' })
+    id: 'violet-nova', label: 'Violet Nova', swatch: '#6D4FE0',
+    light: withTokens({ bg: '#F8F7FD', panel: '#FFFFFF', panelAlt: '#F1EFFB', border: '#E5E1F7', accent: '#6D4FE0', accentDim: 'rgba(109,79,224,0.12)', highlight: '#5A3FC4', text: '#241B42', textDim: '#6C6289' }),
+    dark: withTokens({ bg: '#14101F', panel: '#1D1830', panelAlt: '#282144', border: '#2E2650', accent: '#9B87F5', accentDim: 'rgba(155,135,245,0.16)', highlight: '#B0A0F8', text: '#ECE8FB', textDim: '#A79BD1' }),
+    glass: glassTokens({ bg: 'transparent', accent: '#9B87F5', primaryHover: '#B0A0F8', text: '#F3F0FE', textDim: '#BBB0DE', gold: '#C084FC', glassGradient: 'radial-gradient(circle at 20% 0%, #241C42 0%, #14101F 55%, #0A0714 100%)', glassOrbOne: '#9B87F5', glassOrbTwo: '#C084FC', glassSurface: 'rgba(155,135,245,0.06)', glassSurfaceRgb: '155,135,245', glassBorder: 'rgba(155,135,245,0.15)', glassBorderRgb: '155,135,245', glassActive: 'rgba(155,135,245,0.18)', glassGlow: 'rgba(155,135,245,0.25)', glassBackdrop: 'rgba(10,7,20,0.82)', glassMediaOverlay: 'rgba(10,7,20,0.35)' })
   },
   {
-    id: 'forest-academic', label: 'Forest Academic', swatch: '#2E7D4F',
-    light: withTokens({ bg: '#F6FAF7', panel: '#FFFFFF', panelAlt: '#EDF7F0', border: '#DCEBE1', accent: '#2E7D4F', accentDim: 'rgba(46,125,79,0.12)', highlight: '#256640', text: '#1A2E22', textDim: '#5C7566' }),
-    dark: withTokens({ bg: '#0F1712', panel: '#16211A', panelAlt: '#1D2B22', border: '#23342A', accent: '#4CAF7D', accentDim: 'rgba(76,175,125,0.16)', highlight: '#63C093', text: '#E6F2EB', textDim: '#9FC2AD' })
-  },
-  {
-    id: 'royal-indigo', label: 'Royal Indigo', swatch: '#4C3FCB',
-    light: withTokens({ bg: '#F7F7FC', panel: '#FFFFFF', panelAlt: '#F0EFFA', border: '#E0DEF5', accent: '#4C3FCB', accentDim: 'rgba(76,63,203,0.11)', highlight: '#3D31A8', text: '#1E1B33', textDim: '#665F8C' }),
-    dark: withTokens({ bg: '#131120', panel: '#1B1830', panelAlt: '#242044', border: '#2C2850', accent: '#7B6EF6', accentDim: 'rgba(123,110,246,0.16)', highlight: '#8F84F8', text: '#EBE9FA', textDim: '#A9A2D6' })
-  },
-  {
-    id: 'golden-sand', label: 'Golden Sand', swatch: '#B8860B',
-    light: withTokens({ bg: '#FDFBF5', panel: '#FFFFFF', panelAlt: '#F8F2E2', border: '#ECE2C6', accent: '#B8860B', accentDim: 'rgba(184,134,11,0.12)', highlight: '#9A6F09', text: '#2E2712', textDim: '#7A6E4C' }),
-    dark: withTokens({ bg: '#1A160D', panel: '#241E11', panelAlt: '#302816', border: '#3A3018', accent: '#E0AC3D', accentDim: 'rgba(224,172,61,0.16)', highlight: '#EABD5C', text: '#F5EDD9', textDim: '#C7B888' })
-  },
-  {
-    id: 'slate-mono', label: 'Slate Mono', swatch: '#3F4753',
-    light: withTokens({ bg: '#FAFAFB', panel: '#FFFFFF', panelAlt: '#F1F2F4', border: '#E3E5E9', accent: '#3F4753', accentDim: 'rgba(63,71,83,0.11)', highlight: '#2E3540', text: '#1C1F24', textDim: '#6B7280' }),
-    dark: withTokens({ bg: '#131518', panel: '#1B1E22', panelAlt: '#252930', border: '#2A2E34', accent: '#9BA5B4', accentDim: 'rgba(155,165,180,0.16)', highlight: '#B0B9C6', text: '#EDEFF2', textDim: '#9AA1AB' })
-  },
-  {
-    id: 'glass-obsidian', label: 'Glass Obsidian', swatch: '#6E5BFF', darkOnly: true,
-    dark: withTokens({
-      bg: 'transparent', panel: 'rgba(255,255,255,0.06)', panelAlt: 'rgba(255,255,255,0.08)',
-      border: 'rgba(255,255,255,0.12)', accent: '#6E5BFF', accentDim: 'rgba(110,91,255,0.18)',
-      highlight: '#8172FF', text: '#F2F3F8', textDim: '#A8ACC4', gold: '#33D9C7',
-      success: '#4ADE80', danger: '#FF5C7A', warning: '#F5C451',
-      dangerDim: 'rgba(255,92,122,0.15)', dangerBorder: 'rgba(255,92,122,0.40)',
-      warningDim: 'rgba(245,196,81,0.15)', warningBorder: 'rgba(245,196,81,0.35)',
-      backdrop: 'rgba(5,6,13,0.82)', mediaOverlay: 'rgba(5,6,13,0.35)',
-      primaryButton: 'rgba(110,91,255,0.25)', primaryBorder: 'rgba(110,91,255,0.5)'
-    })
+    id: 'lime-volt', label: 'Lime Volt', swatch: '#5FA815',
+    light: withTokens({ bg: '#F7FBF0', panel: '#FFFFFF', panelAlt: '#EEF7E2', border: '#DFF0C8', accent: '#5FA815', accentDim: 'rgba(95,168,21,0.12)', highlight: '#4C8811', text: '#1B2A0D', textDim: '#5C6E4A' }),
+    dark: withTokens({ bg: '#0B120A', panel: '#121A10', panelAlt: '#1C2915', border: '#263420', accent: '#C4F542', accentDim: 'rgba(196,245,66,0.16)', highlight: '#D4FF6B', text: '#EFFCE0', textDim: '#A8C48F' }),
+    glass: glassTokens({ bg: 'transparent', accent: '#C4F542', primaryHover: '#D4FF6B', text: '#F5FEE8', textDim: '#C1D9A8', gold: '#7FCC1E', glassGradient: 'radial-gradient(circle at 20% 0%, #16210F 0%, #0B120A 55%, #050A04 100%)', glassOrbOne: '#C4F542', glassOrbTwo: '#7FCC1E', glassSurface: 'rgba(196,245,66,0.06)', glassSurfaceRgb: '196,245,66', glassBorder: 'rgba(196,245,66,0.15)', glassBorderRgb: '196,245,66', glassActive: 'rgba(196,245,66,0.18)', glassGlow: 'rgba(196,245,66,0.25)', glassBackdrop: 'rgba(5,10,4,0.82)', glassMediaOverlay: 'rgba(5,10,4,0.35)' })
   }
 ];
 
@@ -80,7 +67,7 @@ export const getColorTheme = id => COLOR_THEMES.find(item => item.id === id) || 
 const readStoredTheme = () => {
   try {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return THEME_OPTIONS.has(stored) ? stored : 'system';
+    return THEME_OPTIONS.has(stored) ? stored : 'light';
   } catch {
     return 'system';
   }
@@ -130,6 +117,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     const root = document.documentElement;
+    const activePalette = getColorTheme(colorTheme)[theme === 'glass' ? 'glass' : resolvedTheme] || getColorTheme(colorTheme).dark;
     const intensityRatio = glassIntensity / 100;
     const glassValues = {
       blur: `${4 + intensityRatio * 28}px`,
@@ -142,7 +130,7 @@ export function ThemeProvider({ children }) {
     };
     root.classList.toggle('dark', resolvedTheme === 'dark');
     root.dataset.theme = resolvedTheme;
-    root.dataset.colorTheme = theme === 'glass' ? 'glass-obsidian' : colorTheme;
+    root.dataset.colorTheme = colorTheme;
     root.dataset.glassMode = theme === 'glass' ? 'true' : 'false';
     root.style.colorScheme = resolvedTheme === 'glass' ? 'dark' : resolvedTheme;
     root.style.setProperty('--glass-blur', glassValues.blur);
@@ -152,6 +140,15 @@ export function ThemeProvider({ children }) {
     root.style.setProperty('--glass-glow-opacity', glassValues.glowOpacity);
     root.style.setProperty('--glass-orb-opacity', glassValues.orbOpacity);
     root.style.setProperty('--glass-saturate', glassValues.saturate);
+    root.style.setProperty('--glass-gradient', activePalette.glassGradient || 'none');
+    root.style.setProperty('--glass-surface', activePalette.glassSurface || 'rgba(255,255,255,0.06)');
+    root.style.setProperty('--glass-surface-rgb', activePalette.glassSurfaceRgb || '255,255,255');
+    root.style.setProperty('--glass-border', activePalette.glassBorder || 'rgba(255,255,255,0.12)');
+    root.style.setProperty('--glass-border-rgb', activePalette.glassBorderRgb || '255,255,255');
+    root.style.setProperty('--glass-active', activePalette.glassActive || 'rgba(110,91,255,0.18)');
+    root.style.setProperty('--glass-glow', activePalette.glassGlow || 'rgba(110,91,255,0.25)');
+    root.style.setProperty('--glass-orb-one', activePalette.glassOrbOne || '#6E5BFF');
+    root.style.setProperty('--glass-orb-two', activePalette.glassOrbTwo || '#33D9C7');
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
       window.localStorage.setItem(COLOR_THEME_STORAGE_KEY, colorTheme);

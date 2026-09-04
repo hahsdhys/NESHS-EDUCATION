@@ -407,8 +407,8 @@ export default function App() {
 
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
-  const selectedColorTheme = theme === 'glass' ? getColorTheme('glass-obsidian') : getColorTheme(colorTheme);
-  Object.assign(C, selectedColorTheme[resolvedTheme] || selectedColorTheme.dark);
+  const selectedColorTheme = getColorTheme(colorTheme);
+  Object.assign(C, selectedColorTheme[theme === 'glass' ? 'glass' : resolvedTheme] || selectedColorTheme.dark);
   const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' || theme === 'system' ? 'glass' : 'light';
   const toggleTheme = () => setThemeMode(nextTheme);
   const modeLabel = theme === 'glass' ? 'Glass Obsidian' : theme === 'dark' ? 'Dark mode' : 'Light mode';
@@ -1633,7 +1633,7 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
-        <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: theme === 'glass' ? '#6E5BFF' : C.accent }} title={modeLabel} aria-label={modeLabel}>
+        <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={modeLabel} aria-label={modeLabel}>
           <span key={theme} className="theme-mode-icon inline-flex animate-[theme-icon-in_200ms_ease-out]">
             {theme === 'glass' ? <Sparkles className="w-4 h-4" /> : theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
           </span>
@@ -1887,14 +1887,14 @@ export default function App() {
             const moduleFolders = m.id === 'projectHistory' ? [] : folders.filter(f => f.module === m.id);
             return (
               <div key={m.id}>
-                <button onClick={() => { setActiveTab(m.id); setMobileNavOpen(false); setQuizMode('list'); setExpandedAchieverId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold" style={activeTab === m.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
+                <button onClick={() => { setActiveTab(m.id); setMobileNavOpen(false); setQuizMode('list'); setExpandedAchieverId(null); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold ${activeTab === m.id ? 'active-nav-item' : ''}`} style={activeTab === m.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
                   <m.icon className="w-4 h-4" /> {m.label}
                 </button>
                 {moduleFolders.length > 0 && (
                   <div className="ml-4 mt-1 space-y-1 pl-2" style={{ borderLeft: `1px solid ${C.border}` }}>
                     {moduleFolders.map(f => (
                       <div key={f.id} className="flex items-center gap-1">
-                        <button onClick={() => { setActiveTab(f.id); setMobileNavOpen(false); }} className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-semibold" style={activeTab === f.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
+                        <button onClick={() => { setActiveTab(f.id); setMobileNavOpen(false); }} className={`flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-semibold ${activeTab === f.id ? 'active-nav-item' : ''}`} style={activeTab === f.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
                           <Folder className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{f.title}</span>
                         </button>
                         {canEditEverything && (
@@ -1911,7 +1911,7 @@ export default function App() {
           })}
 
           <p className="text-[10px] font-bold uppercase mt-4 mb-2 pl-1" style={{ color: C.textDim }}>System</p>
-          <button onClick={() => setActiveTab('author')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold" style={activeTab === 'author' ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
+          <button onClick={() => setActiveTab('author')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold ${activeTab === 'author' ? 'active-nav-item' : ''}`} style={activeTab === 'author' ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
             <User className="w-4 h-4" /> Author Profile
           </button>
         </div>
@@ -2014,7 +2014,7 @@ export default function App() {
               </p>
             </div>
 
-            <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: theme === 'glass' ? '#6E5BFF' : C.accent }} title={modeLabel} aria-label={modeLabel}>
+            <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={modeLabel} aria-label={modeLabel}>
               <span key={theme} className="theme-mode-icon inline-flex animate-[theme-icon-in_200ms_ease-out]">
                 {theme === 'glass' ? <Sparkles className="w-4 h-4" /> : theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
               </span>
@@ -3001,7 +3001,7 @@ export default function App() {
                       <p className="text-xs font-bold">Glass Intensity: {glassIntensity}%</p>
                       <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>Adjust blur, translucency, glow, and background orbs in real time.</p>
                     </div>
-                    <Sparkles className="w-4 h-4 shrink-0" style={{ color: '#6E5BFF' }} />
+                    <Sparkles className="w-4 h-4 shrink-0" style={{ color: C.accent }} />
                   </div>
                   <input
                     type="range"
@@ -3009,10 +3009,10 @@ export default function App() {
                     max="100"
                     value={glassIntensity}
                     onChange={e => setGlassIntensity(e.target.value)}
-                    className="w-full accent-[#6E5BFF]"
+                    className="w-full"
                     aria-label="Glass Intensity"
                   />
-                  <button type="button" onClick={() => setGlassIntensity(60)} className="mt-2 text-[10px] font-bold" style={{ color: '#8172FF' }}>
+                  <button type="button" onClick={() => setGlassIntensity(60)} className="mt-2 text-[10px] font-bold" style={{ color: C.highlight }}>
                     Reset to default (60%)
                   </button>
                 </div>

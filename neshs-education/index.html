@@ -8,10 +8,8 @@
     <script>
       (() => {
         try {
-          const selected = localStorage.getItem('neshs_user_theme') || 'system';
-          const colorTheme = selected === 'glass'
-            ? 'glass-obsidian'
-            : (localStorage.getItem('neshs_color_theme') || 'ocean-teal');
+          const selected = localStorage.getItem('neshs_user_theme') || 'light';
+          const colorTheme = localStorage.getItem('neshs_color_theme') || 'cyan-pulse';
           const resolved = selected === 'system'
             ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : selected;

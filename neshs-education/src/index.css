@@ -30,13 +30,12 @@ textarea {
 	}
 }
 
-html[data-color-theme='glass-obsidian'] body {
-	background: radial-gradient(circle at 20% 0%, #1B1F3B 0%, #0A0C1A 55%, #05060D 100%);
-	color: #F2F3F8;
+html[data-glass-mode='true'] body {
+	background: var(--glass-gradient);
 }
 
-html[data-color-theme='glass-obsidian'] body::before,
-html[data-color-theme='glass-obsidian'] body::after {
+html[data-glass-mode='true'] body::before,
+html[data-glass-mode='true'] body::after {
 	content: '';
 	position: fixed;
 	inset: auto;
@@ -49,66 +48,64 @@ html[data-color-theme='glass-obsidian'] body::after {
 	z-index: 0;
 }
 
-html[data-color-theme='glass-obsidian'] body::before {
-	background: #6E5BFF;
+html[data-glass-mode='true'] body::before {
+	background: var(--glass-orb-one);
 	top: -12rem;
 	right: 8%;
 }
 
-html[data-color-theme='glass-obsidian'] body::after {
-	background: #33D9C7;
+html[data-glass-mode='true'] body::after {
+	background: var(--glass-orb-two);
 	bottom: -16rem;
 	left: 8%;
 }
 
-html[data-color-theme='glass-obsidian'] #root {
+html[data-glass-mode='true'] #root {
 	position: relative;
 	z-index: 1;
 	background: transparent !important;
 }
 
-html[data-color-theme='glass-obsidian'] .glass-surface,
-html[data-color-theme='glass-obsidian'] aside,
-html[data-color-theme='glass-obsidian'] header {
-	background-color: rgba(255, 255, 255, var(--glass-surface-opacity)) !important;
+html[data-glass-mode='true'] .glass-surface,
+html[data-glass-mode='true'] aside,
+html[data-glass-mode='true'] header {
+	background-color: rgba(var(--glass-surface-rgb), var(--glass-surface-opacity)) !important;
 	backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 	-webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-	border-color: rgba(255, 255, 255, var(--glass-border-opacity)) !important;
+	border-color: rgba(var(--glass-border-rgb), var(--glass-border-opacity)) !important;
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
-html[data-color-theme='glass-obsidian'] aside {
-	background-color: rgba(255, 255, 255, calc(var(--glass-surface-opacity) * 0.67)) !important;
+html[data-glass-mode='true'] aside {
+	background-color: rgba(var(--glass-surface-rgb), calc(var(--glass-surface-opacity) * 0.67)) !important;
 }
 
-html[data-color-theme='glass-obsidian'] .glass-button {
+html[data-glass-mode='true'] .glass-button {
 	backdrop-filter: blur(12px) saturate(140%);
 	-webkit-backdrop-filter: blur(12px) saturate(140%);
 }
 
-html[data-color-theme='glass-obsidian'] .glass-button:not(:disabled) {
+html[data-glass-mode='true'] .glass-button:not(:disabled) {
 	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-html[data-color-theme='glass-obsidian'] .glass-button-solid:not(:disabled) {
-	background: rgba(110, 91, 255, 0.25) !important;
-	border: 1px solid rgba(110, 91, 255, 0.5) !important;
-	color: #F2F3F8 !important;
+html[data-glass-mode='true'] .glass-button-solid:not(:disabled) {
+	background: var(--glass-active) !important;
+	border: 1px solid rgba(var(--glass-border-rgb), var(--glass-border-opacity)) !important;
 }
 
-html[data-color-theme='glass-obsidian'] .glass-button-solid:not(:disabled):hover {
-	background: rgba(129, 114, 255, 0.34) !important;
+html[data-glass-mode='true'] .glass-button-solid:not(:disabled):hover {
+	background: var(--glass-active) !important;
 }
 
-html[data-color-theme='glass-obsidian'] .glass-surface img,
-html[data-color-theme='glass-obsidian'] img.rounded-xl {
-	border: 1px solid rgba(255, 255, 255, 0.15);
+html[data-glass-mode='true'] .glass-surface img,
+html[data-glass-mode='true'] img.rounded-xl {
+	border: 1px solid var(--glass-border);
 	border-radius: 12px;
 }
 
-html[data-color-theme='glass-obsidian'] aside button[style*='110,91,255'],
-html[data-color-theme='glass-obsidian'] aside button[style*='6E5BFF'] {
-	box-shadow: 0 0 var(--glass-glow-radius) rgba(110, 91, 255, var(--glass-glow-opacity));
+html[data-glass-mode='true'] aside .active-nav-item {
+	box-shadow: 0 0 var(--glass-glow-radius) var(--glass-glow);
 }
 
 @keyframes theme-icon-in {
@@ -117,9 +114,9 @@ html[data-color-theme='glass-obsidian'] aside button[style*='6E5BFF'] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	html[data-color-theme='glass-obsidian'] .glass-surface,
-	html[data-color-theme='glass-obsidian'] aside,
-	html[data-color-theme='glass-obsidian'] header {
+	html[data-glass-mode='true'] .glass-surface,
+	html[data-glass-mode='true'] aside,
+	html[data-glass-mode='true'] header {
 	backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-saturate));
 	-webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-saturate));
 	}
