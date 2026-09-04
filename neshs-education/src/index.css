@@ -1,3 +1,31 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html,
+body,
+#root {
+	min-height: 100%;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea {
+	transition-property: background-color, border-color, color, fill, stroke;
+	transition-duration: 180ms;
+	transition-timing-function: ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html,
+	body,
+	button,
+	input,
+	select,
+	textarea {
+		transition-duration: 0ms;
+	}
+}

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { cleanMediaUrl } from './utils/cleanMediaUrl';
+import { useTheme } from './ThemeContext.jsx';
 import {
   ShieldCheck, User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
   Megaphone, CheckCircle, Lock, Unlock, Menu, X,
@@ -8,7 +9,7 @@ import {
   Plus, Edit, Trash2, Image as ImageIcon, FileText, Upload, ChevronLeft,
   Play, ScanLine, KeyRound, Quote, GraduationCap,
   Settings, ExternalLink, Loader2, Sun, Moon, Eye, EyeOff, Globe,
-  Zap, FolderCog, ChevronDown, Info, Palette
+  Zap, FolderCog, ChevronDown, Info
 } from 'lucide-react';
 
 // ============================================================
@@ -617,8 +618,7 @@ export default function App() {
     notifications: true,
     reducedMotion: false,
     language: 'English (US)',
-    autoDownload: false,
-    theme: 'dark'
+    autoDownload: false
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsSearch, setSettingsSearch] = useState('');
@@ -627,20 +627,12 @@ export default function App() {
   const motionTransition = reducedMotion ? '' : 'transition-all duration-300';
   const motionBounce = reducedMotion ? '' : 'animate-bounce';
   const hoverScale = reducedMotion ? '' : 'hover:scale-105';
+  const { theme, resolvedTheme, setTheme: setThemeMode } = useTheme();
 
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
-  Object.assign(C, getThemePalette(settings.theme || 'dark'));
-  // Quick-toggle button in the header flips WITHIN the active theme's own
-  // family (via pairId) — e.g. on Ember Dusk it flips to Ember Dawn, on
-  // Reef Coral it flips to Reef Abyss — rather than always jumping to
-  // NESHS Dark/Light. Every theme now has a light and dark counterpart, so
-  // this always has somewhere meaningful to go. The full picker (all twelve
-  // themes) lives in Settings.
-  const activeThemeMeta = THEMES.find(t => t.id === settings.theme) || THEMES[0];
-  const isLightLikeTheme = activeThemeMeta.isLight;
-  const toggleTheme = () => handleSettingChange('theme', activeThemeMeta.pairId || (isLightLikeTheme ? 'dark' : 'light'));
-  const setTheme = (themeId) => handleSettingChange('theme', themeId);
+  Object.assign(C, getThemePalette(resolvedTheme));
+  const toggleTheme = () => setThemeMode(resolvedTheme === 'dark' ? 'light' : 'dark');
 
   const [toast, setToast] = useState(null);
   const triggerToast = (message, type = 'info') => {
@@ -1480,7 +1472,11 @@ export default function App() {
     // local-only fallback), never durable data. Loading a stale saved copy
     // here would make offline accounts appear to "come back online" on reload.
     if (typeof data.portalTitle === 'string' && data.portalTitle.trim()) setPortalTitle(data.portalTitle);
-    if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+    if (data.settings) {
+      const sharedSettings = { ...data.settings };
+      delete sharedSettings.theme;
+      setSettings(prev => ({ ...prev, ...sharedSettings }));
+    }
     if (data.author) {
       setAuthorName(data.author.name || 'MARK NIEL PAITON');
       setAuthorTitle(data.author.title || 'Creator & Architect');
@@ -1652,7 +1648,7 @@ export default function App() {
       const payload = {
         __v: nextVersion,
         sections, folders, announcements, projectFiles, achievers,
-        quizzes, quizRecords, notifications, settings, portalTitle,
+        quizzes, quizRecords, notifications, settings: { ...settings, theme: undefined }, portalTitle,
         author: { name: authorName, title: authorTitle, bio: authorBio, photo: authorPhotoUrl },
         authors,
         history,
@@ -1858,8 +1854,8 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
-        <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={isLightLikeTheme ? 'Switch to dark mode' : 'Switch to light mode'}>
-          {isLightLikeTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+        <button onClick={toggleTheme} className={`absolute top-5 right-5 p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+          {resolvedTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
@@ -2237,8 +2233,8 @@ export default function App() {
               </p>
             </div>
 
-            <button onClick={toggleTheme} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={isLightLikeTheme ? 'Switch to dark mode' : 'Switch to light mode'}>
-              {isLightLikeTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            <button onClick={toggleTheme} className={`p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+              {resolvedTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-lg" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }} title="Settings & Privacy">
               <Settings className="w-4 h-4" />
@@ -3181,41 +3177,18 @@ export default function App() {
                 control={<Toggle checked={settings.autoDownload} onChange={v => handleSettingChange('autoDownload', v)} reducedMotion={reducedMotion} />}
               />
 
-              {/* Theme picker — full palette selection, not just a dark/light
-                  toggle. Each swatch previews the theme's actual background,
-                  panel, and accent colors so it's recognizable at a glance. */}
-              <div className="py-3.5" style={{ borderBottom: `1px solid ${C.border}` }}>
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: C.accentDim }}>
-                    <Palette className="w-4 h-4" style={{ color: C.accent }} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold">Theme</p>
-                    <p className="text-[10px] mt-0.5" style={{ color: C.textDim }}>Choose the portal's color scheme.</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-11">
-                  {THEMES.map(t => {
-                    const active = (settings.theme || 'dark') === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => setTheme(t.id)}
-                        className={`text-left p-2.5 rounded-xl ${reducedMotion ? '' : 'transition-all'}`}
-                        style={{ backgroundColor: t.palette.panel, border: active ? `2px solid ${t.palette.accent}` : `1px solid ${t.palette.border}` }}
-                      >
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: t.palette.bg, border: `1px solid ${t.palette.border}` }} />
-                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: t.palette.accent }} />
-                          <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: t.palette.gold }} />
-                          {active && <CheckCircle className="w-3.5 h-3.5 ml-auto shrink-0" style={{ color: t.palette.accent }} />}
-                        </div>
-                        <p className="text-[10px] font-bold" style={{ color: t.palette.text }}>{t.label}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <SettingsRow
+                icon={resolvedTheme === 'dark' ? Moon : Sun}
+                label="Theme"
+                desc="Choose light mode, dark mode, or follow your device preference."
+                control={
+                  <Select value={theme} onChange={e => setThemeMode(e.target.value)} className="!w-40 !py-2 text-xs">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="system">System Default</option>
+                  </Select>
+                }
+              />
 
               <div className="flex items-start gap-2 mt-5 mb-4 p-3 rounded-xl" style={{ backgroundColor: C.accentDim }}>
                 <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.accent }} />
