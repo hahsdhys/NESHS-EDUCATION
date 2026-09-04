@@ -264,7 +264,7 @@ const Btn = ({ children, onClick, variant = 'solid', className = '', type = 'but
   const base = `inline-flex items-center justify-center gap-2 rounded-xl text-xs font-bold px-4 py-2.5 disabled:opacity-40 disabled:cursor-not-allowed ${reducedMotion ? '' : 'transition-all active:scale-[0.97]'}`;
   const style =
     variant === 'solid'
-      ? { backgroundColor: C.accent, color: C.bg }
+      ? { backgroundColor: C.accent, color: C.onPrimary }
       : variant === 'ghost'
       ? { backgroundColor: 'transparent', color: C.accent, border: `1px solid ${C.border}` }
       : variant === 'danger'
@@ -1649,8 +1649,8 @@ export default function App() {
 
           <Card className="p-6">
             <div className="flex p-1 rounded-xl mb-5" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
-              <button onClick={() => { setAuthMode('signin'); resetWizard(); }} className="flex-1 py-2 text-xs font-bold rounded-lg" style={authMode === 'signin' ? { backgroundColor: C.accent, color: C.bg } : { color: C.textDim }}>Sign In</button>
-              <button onClick={() => { setAuthMode('signup'); resetWizard(); }} className="flex-1 py-2 text-xs font-bold rounded-lg" style={authMode === 'signup' ? { backgroundColor: C.accent, color: C.bg } : { color: C.textDim }}>Sign Up</button>
+              <button onClick={() => { setAuthMode('signin'); resetWizard(); }} className="flex-1 py-2 text-xs font-bold rounded-lg" style={authMode === 'signin' ? { backgroundColor: C.accent, color: C.onPrimary } : { color: C.textDim }}>Sign In</button>
+              <button onClick={() => { setAuthMode('signup'); resetWizard(); }} className="flex-1 py-2 text-xs font-bold rounded-lg" style={authMode === 'signup' ? { backgroundColor: C.accent, color: C.onPrimary } : { color: C.textDim }}>Sign Up</button>
             </div>
 
             {authError && <div className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ backgroundColor: C.dangerDim, border: `1px solid ${C.dangerBorder}`, color: C.danger }}>{authError}</div>}
@@ -1810,7 +1810,7 @@ export default function App() {
 
       {/* GLOBAL TOAST — only ever set when settings.notifications is true (see triggerToast) */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-[400] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold ${motionBounce}`} style={{ backgroundColor: C.accent, color: C.bg }}>
+        <div className={`fixed bottom-6 right-6 z-[400] px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold ${motionBounce}`} style={{ backgroundColor: C.accent, color: C.onPrimary }}>
           <CheckCircle className="w-4 h-4" />
           <span>{toast.message}</span>
         </div>
@@ -1964,7 +1964,7 @@ export default function App() {
                   onKeyDown={e => { if (e.key === 'Enter') savePortalTitle(); if (e.key === 'Escape') setPortalTitleEditing(false); }}
                   className="text-center text-xs font-bold py-2"
                 />
-                <button onClick={savePortalTitle} className="p-1.5 rounded-lg shrink-0" style={{ backgroundColor: C.accent, color: C.bg }} title="Save"><CheckCircle className="w-4 h-4" /></button>
+                <button onClick={savePortalTitle} className="p-1.5 rounded-lg shrink-0" style={{ backgroundColor: C.accent, color: C.onPrimary }} title="Save"><CheckCircle className="w-4 h-4" /></button>
                 <button onClick={() => setPortalTitleEditing(false)} className="p-1.5 rounded-lg shrink-0" style={{ backgroundColor: C.panelAlt, color: C.textDim }} title="Cancel"><X className="w-4 h-4" /></button>
               </div>
             ) : (
@@ -1983,7 +1983,7 @@ export default function App() {
             <div className="relative">
               <button onClick={() => { setNotifOpen(!notifOpen); setNotifUnread(0); }} className="p-2 rounded-lg relative" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }}>
                 <Bell className="w-4 h-4" />
-                {notifUnread > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-bold" style={{ backgroundColor: C.accent, color: C.bg }}>{notifUnread > 9 ? '9+' : notifUnread}</span>}
+                {notifUnread > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-bold" style={{ backgroundColor: C.accent, color: C.onPrimary }}>{notifUnread > 9 ? '9+' : notifUnread}</span>}
               </button>
               {notifOpen && (
                 <Card className="absolute right-0 mt-2 w-72 max-h-80 overflow-y-auto p-3 z-50">
@@ -2101,7 +2101,7 @@ export default function App() {
               {canEditEverything && (
                 <button onClick={startNewAnnouncement} className="w-full flex flex-col items-center justify-center gap-2 py-8 rounded-2xl mb-6" style={{ backgroundColor: C.accentDim, border: `2px dashed ${C.accent}` }}>
                   <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: C.accent }}>
-                    <Plus className="w-6 h-6" style={{ color: C.bg }} />
+                    <Plus className="w-6 h-6" style={{ color: C.onPrimary }} />
                   </span>
                   <span className="text-sm font-extrabold" style={{ color: C.accent }}>Create Article/News</span>
                 </button>
@@ -2550,7 +2550,7 @@ export default function App() {
                             ) : item.type === 'True/False' ? (
                               <div className="flex gap-3">
                                 {['True', 'False'].map(v => (
-                                  <button key={v} onClick={() => setTakeState({ ...takeState, answers: { ...takeState.answers, [idx]: v } })} className="px-4 py-1.5 rounded-lg text-xs font-bold" style={takeState.answers[idx] === v ? { backgroundColor: C.accent, color: C.bg } : { backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }}>{v}</button>
+                                  <button key={v} onClick={() => setTakeState({ ...takeState, answers: { ...takeState.answers, [idx]: v } })} className="px-4 py-1.5 rounded-lg text-xs font-bold" style={takeState.answers[idx] === v ? { backgroundColor: C.accent, color: C.onPrimary } : { backgroundColor: C.bg, border: `1px solid ${C.border}`, color: C.text }}>{v}</button>
                                 ))}
                               </div>
                             ) : item.type === 'Enumeration' ? (
