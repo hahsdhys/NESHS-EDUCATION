@@ -271,7 +271,7 @@ const Btn = ({ children, onClick, variant = 'solid', className = '', type = 'but
       ? { backgroundColor: C.dangerDim, color: C.danger, border: `1px solid ${C.dangerBorder}` }
       : { backgroundColor: C.panelAlt, color: C.text, border: `1px solid ${C.border}` };
   return (
-    <button type={type} disabled={disabled} onClick={onClick} className={`${base} ${className}`} style={style}>
+    <button type={type} disabled={disabled} onClick={onClick} className={`${base} glass-button glass-button-${variant} ${className}`} style={style}>
       {children}
     </button>
   );
@@ -296,7 +296,7 @@ const Select = (props) => (
 );
 
 const Card = ({ children, className = '', style = {} }) => (
-  <div className={`rounded-2xl ${className}`} style={{ backgroundColor: C.panel, border: `1px solid ${C.border}`, ...style }}>
+  <div className={`rounded-2xl glass-surface ${className}`} style={{ backgroundColor: C.panel, border: `1px solid ${C.border}`, ...style }}>
     {children}
   </div>
 );
@@ -407,7 +407,8 @@ export default function App() {
 
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
-  Object.assign(C, getColorTheme(colorTheme)[resolvedTheme]);
+  const selectedColorTheme = getColorTheme(colorTheme);
+  Object.assign(C, selectedColorTheme[resolvedTheme] || selectedColorTheme.dark);
   const toggleTheme = () => setThemeMode(resolvedTheme === 'dark' ? 'light' : 'dark');
 
   const [toast, setToast] = useState(null);
@@ -2966,7 +2967,7 @@ export default function App() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-11">
                   {COLOR_THEMES.map(item => {
                     const active = colorTheme === item.id;
-                    const preview = item[resolvedTheme];
+                    const preview = item[resolvedTheme] || item.dark;
                     return (
                       <button
                         key={item.id}

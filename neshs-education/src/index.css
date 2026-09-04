@@ -29,3 +29,93 @@ textarea {
 		transition-duration: 0ms;
 	}
 }
+
+html[data-color-theme='glass-obsidian'] body {
+	background: radial-gradient(circle at 20% 0%, #1B1F3B 0%, #0A0C1A 55%, #05060D 100%);
+	color: #F2F3F8;
+}
+
+html[data-color-theme='glass-obsidian'] body::before,
+html[data-color-theme='glass-obsidian'] body::after {
+	content: '';
+	position: fixed;
+	inset: auto;
+	width: 34rem;
+	height: 34rem;
+	border-radius: 9999px;
+	pointer-events: none;
+	filter: blur(110px);
+	opacity: 0.16;
+	z-index: 0;
+}
+
+html[data-color-theme='glass-obsidian'] body::before {
+	background: #6E5BFF;
+	top: -12rem;
+	right: 8%;
+}
+
+html[data-color-theme='glass-obsidian'] body::after {
+	background: #33D9C7;
+	bottom: -16rem;
+	left: 8%;
+}
+
+html[data-color-theme='glass-obsidian'] #root {
+	position: relative;
+	z-index: 1;
+	background: transparent !important;
+}
+
+html[data-color-theme='glass-obsidian'] .glass-surface,
+html[data-color-theme='glass-obsidian'] aside,
+html[data-color-theme='glass-obsidian'] header {
+	background-color: rgba(255, 255, 255, 0.06) !important;
+	backdrop-filter: blur(20px) saturate(140%);
+	-webkit-backdrop-filter: blur(20px) saturate(140%);
+	border-color: rgba(255, 255, 255, 0.12) !important;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+html[data-color-theme='glass-obsidian'] aside {
+	background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+html[data-color-theme='glass-obsidian'] .glass-button {
+	backdrop-filter: blur(12px) saturate(140%);
+	-webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+
+html[data-color-theme='glass-obsidian'] .glass-button:not(:disabled) {
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+html[data-color-theme='glass-obsidian'] .glass-button-solid:not(:disabled) {
+	background: rgba(110, 91, 255, 0.25) !important;
+	border: 1px solid rgba(110, 91, 255, 0.5) !important;
+	color: #F2F3F8 !important;
+}
+
+html[data-color-theme='glass-obsidian'] .glass-button-solid:not(:disabled):hover {
+	background: rgba(129, 114, 255, 0.34) !important;
+}
+
+html[data-color-theme='glass-obsidian'] .glass-surface img,
+html[data-color-theme='glass-obsidian'] img.rounded-xl {
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	border-radius: 12px;
+}
+
+html[data-color-theme='glass-obsidian'] aside button[style*='110,91,255'],
+html[data-color-theme='glass-obsidian'] aside button[style*='6E5BFF'] {
+	box-shadow: 0 0 16px rgba(110, 91, 255, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html[data-color-theme='glass-obsidian'] .glass-surface,
+	html[data-color-theme='glass-obsidian'] aside,
+	html[data-color-theme='glass-obsidian'] header {
+	backdrop-filter: blur(12px) saturate(120%);
+	-webkit-backdrop-filter: blur(12px) saturate(120%);
+	}
+}

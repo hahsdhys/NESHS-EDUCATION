@@ -15,16 +15,16 @@ const withTokens = palette => ({
   primary: palette.accent,
   primaryHover: palette.highlight,
   secondary: palette.accentDim,
-  success: STATUS_COLORS.success,
-  danger: STATUS_COLORS.danger,
-  warning: STATUS_COLORS.warning,
+  success: palette.success || STATUS_COLORS.success,
+  danger: palette.danger || STATUS_COLORS.danger,
+  warning: palette.warning || STATUS_COLORS.warning,
   gold: palette.gold || STATUS_COLORS.warning,
-  dangerDim: 'rgba(199,67,63,0.12)',
-  dangerBorder: 'rgba(199,67,63,0.30)',
-  warningDim: 'rgba(183,121,31,0.14)',
-  warningBorder: 'rgba(183,121,31,0.30)',
-  backdrop: 'rgba(0,0,0,0.82)',
-  mediaOverlay: 'rgba(0,0,0,0.35)'
+  dangerDim: palette.dangerDim || 'rgba(199,67,63,0.12)',
+  dangerBorder: palette.dangerBorder || 'rgba(199,67,63,0.30)',
+  warningDim: palette.warningDim || 'rgba(183,121,31,0.14)',
+  warningBorder: palette.warningBorder || 'rgba(183,121,31,0.30)',
+  backdrop: palette.backdrop || 'rgba(0,0,0,0.82)',
+  mediaOverlay: palette.mediaOverlay || 'rgba(0,0,0,0.35)'
 });
 
 export const COLOR_THEMES = [
@@ -57,6 +57,19 @@ export const COLOR_THEMES = [
     id: 'slate-mono', label: 'Slate Mono', swatch: '#3F4753',
     light: withTokens({ bg: '#FAFAFB', panel: '#FFFFFF', panelAlt: '#F1F2F4', border: '#E3E5E9', accent: '#3F4753', accentDim: 'rgba(63,71,83,0.11)', highlight: '#2E3540', text: '#1C1F24', textDim: '#6B7280' }),
     dark: withTokens({ bg: '#131518', panel: '#1B1E22', panelAlt: '#252930', border: '#2A2E34', accent: '#9BA5B4', accentDim: 'rgba(155,165,180,0.16)', highlight: '#B0B9C6', text: '#EDEFF2', textDim: '#9AA1AB' })
+  },
+  {
+    id: 'glass-obsidian', label: 'Glass Obsidian', swatch: '#6E5BFF', darkOnly: true,
+    dark: withTokens({
+      bg: 'transparent', panel: 'rgba(255,255,255,0.06)', panelAlt: 'rgba(255,255,255,0.08)',
+      border: 'rgba(255,255,255,0.12)', accent: '#6E5BFF', accentDim: 'rgba(110,91,255,0.18)',
+      highlight: '#8172FF', text: '#F2F3F8', textDim: '#A8ACC4', gold: '#33D9C7',
+      success: '#4ADE80', danger: '#FF5C7A', warning: '#F5C451',
+      dangerDim: 'rgba(255,92,122,0.15)', dangerBorder: 'rgba(255,92,122,0.40)',
+      warningDim: 'rgba(245,196,81,0.15)', warningBorder: 'rgba(245,196,81,0.35)',
+      backdrop: 'rgba(5,6,13,0.82)', mediaOverlay: 'rgba(5,6,13,0.35)',
+      primaryButton: 'rgba(110,91,255,0.25)', primaryBorder: 'rgba(110,91,255,0.5)'
+    })
   }
 ];
 

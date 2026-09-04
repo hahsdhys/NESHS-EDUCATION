@@ -9,11 +9,13 @@
       (() => {
         try {
           const selected = localStorage.getItem('neshs_user_theme') || 'system';
+          const colorTheme = localStorage.getItem('neshs_color_theme') || 'ocean-teal';
           const resolved = selected === 'system'
             ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : selected;
           document.documentElement.classList.toggle('dark', resolved === 'dark');
           document.documentElement.dataset.theme = resolved;
+          document.documentElement.dataset.colorTheme = colorTheme;
         } catch {}
       })();
     </script>
