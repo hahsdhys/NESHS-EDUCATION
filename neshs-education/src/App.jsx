@@ -357,10 +357,76 @@ function PermissionModal({ open, label, onAllow, onDeny }) {
   );
 }
 
+function NeshsHomePage({ onEnterPortal }) {
+  return (
+    <div className="neshs-home-shell">
+      <div className="neshs-home-grid" />
+      <header className="neshs-home-header">
+        <div className="neshs-pill">Presentation By <strong>SENIOR UNO</strong></div>
+        <div className="neshs-pill">WEBSITE STORAGE DRIVE</div>
+        <div className="neshs-pill">NAME / GRADE AND SECTION</div>
+      </header>
+
+      <main className="neshs-home-main">
+        <section className="neshs-home-copy">
+          <div className="neshs-kicker">NASUGBU EAST SENIOR HIGH</div>
+          <h1>
+            NESHS<br />
+            NASUGBU EAST<br />
+            SENIOR HIGH
+          </h1>
+        </section>
+
+        <section className="neshs-home-visual">
+          <div className="neshs-visual-block">
+            <div className="neshs-banner-tag">WELCOME TO ECHOES</div>
+            <div className="neshs-banner-text">
+              <span>WELCOME</span>
+              <span>TO</span>
+              <span>ECHOES</span>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <div className="neshs-float-tag nht-left">FOR EDUCATION PURPOSE</div>
+      <div className="neshs-float-tag nht-right">SENIOR UNO COMMUNITY</div>
+      <div className="neshs-float-tag nht-bottom">RELEASE DATE: 2026</div>
+
+      <div className="neshs-home-actions">
+        <button className="neshs-enter-button" onClick={onEnterPortal}>ENTER PORTAL</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   // ------------------------------------------------------------
   // persistence bookkeeping
   // ------------------------------------------------------------
+  const [route, setRoute] = useState(() => {
+    if (typeof window === 'undefined') return '/';
+    const current = window.location.pathname || '/';
+    return current === '/portal' || current === '/dashboard' ? '/portal' : current;
+  });
+  const navigate = (nextPath) => {
+    const normalized = nextPath.startsWith('/') ? nextPath : `/${nextPath}`;
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', normalized);
+    }
+    setRoute(normalized);
+  };
+
+  useEffect(() => {
+    const syncRoute = () => {
+      const current = window.location.pathname || '/';
+      const normalized = current === '/portal' || current === '/dashboard' ? '/portal' : current;
+      setRoute(normalized);
+    };
+    window.addEventListener('popstate', syncRoute);
+    return () => window.removeEventListener('popstate', syncRoute);
+  }, []);
+
   const [dataLoaded, setDataLoaded] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -404,6 +470,11 @@ export default function App() {
   const motionBounce = reducedMotion ? '' : 'animate-bounce';
   const hoverScale = reducedMotion ? '' : 'hover:scale-105';
   const { theme, resolvedTheme, setTheme: setThemeMode, colorTheme, setColorTheme, glassIntensity, setGlassIntensity } = useTheme();
+
+  useEffect(() => {
+    if (theme !== 'dark') setThemeMode('dark');
+    if (colorTheme !== 'cyber-mint') setColorTheme('cyber-mint');
+  }, [theme, colorTheme, setThemeMode, setColorTheme]);
 
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
@@ -1595,6 +1666,10 @@ export default function App() {
     resetWizard();
   };
 
+  if (route === '/') {
+    return <NeshsHomePage onEnterPortal={() => navigate('/portal')} />;
+  }
+
   // ================================================================
   // INITIAL LOAD SCREEN
   // ================================================================
@@ -1630,7 +1705,7 @@ export default function App() {
   // ================================================================
   if (!currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
+      <div className="neshs-portal-root neshs-auth-shell min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
         <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={modeLabel} aria-label={modeLabel}>
@@ -1638,7 +1713,7 @@ export default function App() {
             {theme === 'glass' ? <Sparkles className="w-4 h-4" /> : theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
           </span>
         </button>
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md relative z-10">
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-3" style={{ backgroundColor: C.accentDim, border: `1px solid ${C.border}` }}>
               <ShieldCheck className="w-8 h-8" style={{ color: C.accent }} />
@@ -1647,7 +1722,7 @@ export default function App() {
             <p className="text-[11px] uppercase font-semibold tracking-wider" style={{ color: C.textDim }}>{SCHOOL_NAME}</p>
           </div>
 
-          <Card className="p-6">
+          <Card className="neshs-auth-card p-6">
             <div className="flex p-1 rounded-xl mb-5" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
               <button onClick={() => { setAuthMode('signin'); resetWizard(); }} className="flex-1 py-2 text-xs font-bold rounded-lg" style={authMode === 'signin' ? { backgroundColor: C.accent, color: C.onPrimary } : { color: C.textDim }}>Sign In</button>
               <button onClick={() => { setAuthMode('signup'); resetWizard(); }} className="flex-1 py-2 text-xs font-bold rounded-lg" style={authMode === 'signup' ? { backgroundColor: C.accent, color: C.onPrimary } : { color: C.textDim }}>Sign Up</button>
@@ -1804,7 +1879,7 @@ export default function App() {
   const filteredQuizRecords = recordSectionFilter === 'all' ? activeQuizRecords : activeQuizRecords.filter(r => (r.section || '').trim() === recordSectionFilter);
 
   return (
-    <div className="min-h-screen flex font-sans" style={{ backgroundColor: C.bg, color: C.text }}>
+    <div className="neshs-portal-root min-h-screen flex font-sans" style={{ backgroundColor: C.bg, color: C.text }}>
       <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
 

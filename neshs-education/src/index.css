@@ -2,6 +2,79 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --neshs-bg: #041b1a;
+  --neshs-panel: rgba(5, 34, 25, 0.82);
+  --neshs-panel-strong: #081f1b;
+  --neshs-panel-alt: rgba(9, 52, 42, 0.9);
+  --neshs-border: rgba(163, 230, 53, 0.28);
+  --neshs-accent: #a3e635;
+  --neshs-accent-strong: #84cc16;
+  --neshs-accent-soft: rgba(163, 230, 53, 0.12);
+  --neshs-text: #ecfdf5;
+  --neshs-text-soft: #b6f2c6;
+  --neshs-grid: rgba(163, 230, 53, 0.18);
+}
+
+.neshs-portal-root {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at top left, rgba(163, 230, 53, 0.12), transparent 22%),
+    radial-gradient(circle at right, rgba(34, 197, 94, 0.15), transparent 24%),
+    linear-gradient(180deg, #04150f 0%, #071d17 30%, #041812 100%);
+}
+
+.neshs-portal-root::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(163, 230, 53, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(163, 230, 53, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(circle at center, black 50%, transparent 100%);
+  pointer-events: none;
+}
+
+.neshs-auth-shell .neshs-auth-card {
+  background: rgba(3, 26, 21, 0.88) !important;
+  border: 1px solid rgba(163, 230, 53, 0.38) !important;
+  box-shadow: 0 25px 45px rgba(0, 0, 0, 0.45), 0 0 25px rgba(163, 230, 53, 0.15) !important;
+}
+
+.neshs-auth-shell .theme-mode-toggle,
+.neshs-auth-shell .card,
+.neshs-auth-shell button {
+  position: relative;
+  z-index: 1;
+}
+
+.neshs-portal-root aside,
+.neshs-portal-root header,
+.neshs-portal-root .glass-surface {
+  background: rgba(4, 26, 19, 0.82) !important;
+  border-color: rgba(163, 230, 53, 0.25) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(163, 230, 53, 0.06) !important;
+}
+
+.neshs-portal-root .glass-surface {
+  backdrop-filter: blur(8px) saturate(1.1);
+}
+
+.neshs-portal-root .active-nav-item {
+  box-shadow: 0 0 0 1px rgba(163,230,53,0.18), 0 0 22px rgba(163,230,53,0.12) !important;
+}
+
+.neshs-portal-root .rounded-xl,
+.neshs-portal-root .rounded-2xl {
+  border-radius: 1.1rem;
+}
+
+.neshs-portal-root button:hover {
+  filter: brightness(1.04);
+}
+
 html,
 body,
 #root {
@@ -17,6 +90,23 @@ textarea {
 	transition-property: background-color, border-color, color, fill, stroke;
 	transition-duration: 180ms;
 	transition-timing-function: ease;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(163, 230, 53, 0.18), transparent 30%),
+    linear-gradient(135deg, #031a18 0%, #052219 35%, #081b13 100%);
+  color: var(--neshs-text);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -107,6 +197,220 @@ html[data-glass-mode='true'] img.rounded-xl {
 
 html[data-glass-mode='true'] aside .active-nav-item {
 	box-shadow: 0 0 var(--glass-glow-radius) var(--glass-glow);
+}
+
+.neshs-home-shell {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(6, 33, 26, 0.94), rgba(4, 20, 16, 0.98));
+  color: var(--neshs-text);
+  display: flex;
+  flex-direction: column;
+}
+
+.neshs-home-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--neshs-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--neshs-grid) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(circle at center, black 55%, transparent 100%);
+  opacity: 0.9;
+}
+
+.neshs-home-header,
+.neshs-home-main,
+.neshs-home-actions,
+.neshs-float-tag {
+  position: relative;
+  z-index: 1;
+}
+
+.neshs-home-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 2.5rem 0;
+}
+
+.neshs-pill {
+  border: 1px solid rgba(163, 230, 53, 0.6);
+  background: rgba(3, 18, 15, 0.72);
+  color: var(--neshs-text-soft);
+  border-radius: 999px;
+  padding: 0.6rem 1rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  box-shadow: inset 0 0 0 1px rgba(163,230,53,0.08), 0 0 18px rgba(163,230,53,0.12);
+}
+
+.neshs-pill strong {
+  color: var(--neshs-accent);
+  font-weight: 800;
+}
+
+.neshs-home-main {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 2rem;
+  align-items: center;
+  flex: 1;
+  padding: 2rem 4rem 1rem;
+}
+
+.neshs-home-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.neshs-kicker {
+  color: var(--neshs-accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.neshs-home-copy h1 {
+  margin: 0;
+  max-width: 620px;
+  font-size: clamp(3rem, 4vw, 5.5rem);
+  line-height: 0.92;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  text-transform: uppercase;
+  color: #f2fff6;
+  text-shadow: 0 0 18px rgba(163, 230, 53, 0.12);
+}
+
+.neshs-home-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.neshs-visual-block {
+  position: relative;
+  width: min(100%, 760px);
+  min-height: 420px;
+  border-radius: 1.8rem;
+  border: 1px solid rgba(163, 230, 53, 0.45);
+  background: linear-gradient(135deg, rgba(8, 31, 25, 0.95), rgba(6, 31, 24, 0.7));
+  box-shadow: 0 0 0 1px rgba(163,230,53,0.14), 0 0 28px rgba(163,230,53,0.18), inset 0 0 40px rgba(163,230,53,0.04);
+  padding: 1.25rem;
+}
+
+.neshs-visual-block::before,
+.neshs-visual-block::after {
+  content: '';
+  position: absolute;
+  inset: 1rem;
+  border: 1px solid rgba(163,230,53,0.16);
+  border-radius: 1.3rem;
+}
+
+.neshs-banner-tag {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  border: 1px solid rgba(163,230,53,0.4);
+  background: rgba(163,230,53,0.08);
+  color: var(--neshs-accent);
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+}
+
+.neshs-banner-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  text-transform: uppercase;
+}
+
+.neshs-banner-text span {
+  display: block;
+  line-height: 0.92;
+  font-size: clamp(2.6rem, 5vw, 5.25rem);
+  color: #d9ffbf;
+  text-shadow: 0 0 18px rgba(163,230,53,0.3);
+}
+
+.neshs-home-actions {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 2.2rem;
+}
+
+.neshs-enter-button {
+  border: 1px solid rgba(163, 230, 53, 0.7);
+  background: linear-gradient(135deg, rgba(163,230,53,0.24), rgba(132,204,22,0.14));
+  color: #ebffcf;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 1rem 2.1rem;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(163,230,53,0.18), 0 0 28px rgba(163,230,53,0.18);
+  cursor: pointer;
+}
+
+.neshs-float-tag {
+  position: absolute;
+  border: 1px solid rgba(163, 230, 53, 0.5);
+  background: rgba(8, 31, 25, 0.72);
+  color: var(--neshs-accent);
+  border-radius: 999px;
+  padding: 0.6rem 1rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nht-left { top: 16%; left: 4%; }
+.nht-right { top: 16%; right: 4%; }
+.nht-bottom { bottom: 11%; right: 8%; }
+
+@media (max-width: 900px) {
+  .neshs-home-main {
+    grid-template-columns: 1fr;
+    padding: 2.5rem 1.2rem 1rem;
+  }
+
+  .neshs-home-header {
+    padding: 1rem 1rem 0;
+  }
+
+  .neshs-home-copy h1 {
+    font-size: clamp(2.4rem, 12vw, 4rem);
+  }
+
+  .neshs-pill {
+    font-size: 0.55rem;
+    letter-spacing: 0.08em;
+  }
+
+  .neshs-float-tag {
+    display: none;
+  }
 }
 
 @keyframes theme-icon-in {
