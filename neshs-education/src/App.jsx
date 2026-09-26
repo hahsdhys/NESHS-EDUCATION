@@ -337,6 +337,69 @@ const SettingsRow = ({ icon: Icon, label, desc, control }) => (
   </div>
 );
 
+// decorative background motifs --------------------------------------------
+// Purely visual circuit-board traces and network/constellation meshes, drawn
+// with the live theme's accent color (via C.accent, read at render time) so
+// they always match whatever color theme + light/dark mode is active.
+// pointer-events-none + select-none so they never intercept clicks or
+// selection; low opacity so they read as ambient texture, not UI.
+const CircuitTraces = ({ className = '', style = {}, flip = false }) => (
+  <svg
+    viewBox="0 0 220 220"
+    className={`pointer-events-none select-none ${className}`}
+    style={{ position: 'absolute', opacity: 0.35, transform: flip ? 'scaleX(-1)' : undefined, ...style }}
+    fill="none"
+    aria-hidden="true"
+  >
+    <g stroke={C.accent} strokeWidth="2" strokeLinecap="round">
+      <path d="M8 212 L8 145 L48 105 L48 62" />
+      <path d="M8 172 L34 172 L70 136" />
+      <path d="M48 62 L92 62 L92 18" />
+      <path d="M34 172 L34 202" />
+      <path d="M70 136 L70 165 L100 165" />
+      {/* little tick-mark "teeth" accents, matching the video's circuit style */}
+      <path d="M53 62 L58 62 M62 62 L67 62 M71 62 L76 62 M80 62 L85 62" strokeWidth="4" />
+      <path d="M14 178 L14 183 M14 187 L14 192 M14 196 L14 201" strokeWidth="4" />
+    </g>
+    <g fill={C.accent}>
+      <circle cx="8" cy="212" r="3" />
+      <circle cx="48" cy="62" r="3" />
+      <circle cx="92" cy="18" r="3" />
+      <circle cx="70" cy="136" r="3" />
+      <circle cx="34" cy="202" r="3" />
+      <circle cx="100" cy="165" r="3" />
+    </g>
+  </svg>
+);
+
+const NetworkMesh = ({ className = '', style = {} }) => (
+  <svg
+    viewBox="0 0 300 220"
+    className={`pointer-events-none select-none ${className}`}
+    style={{ position: 'absolute', opacity: 0.28, ...style }}
+    fill="none"
+    aria-hidden="true"
+  >
+    <g stroke={C.accent} strokeWidth="1">
+      <line x1="8" y1="195" x2="58" y2="145" />
+      <line x1="58" y1="145" x2="118" y2="175" />
+      <line x1="58" y1="145" x2="98" y2="92" />
+      <line x1="98" y1="92" x2="158" y2="112" />
+      <line x1="118" y1="175" x2="178" y2="152" />
+      <line x1="178" y1="152" x2="158" y2="112" />
+      <line x1="178" y1="152" x2="238" y2="182" />
+      <line x1="8" y1="195" x2="38" y2="212" />
+      <line x1="98" y1="92" x2="88" y2="40" />
+      <line x1="158" y1="112" x2="208" y2="90" />
+    </g>
+    <g fill={C.accent}>
+      {[[8, 195], [58, 145], [118, 175], [98, 92], [158, 112], [178, 152], [238, 182], [38, 212], [88, 40], [208, 90]].map(([cx, cy], i) => (
+        <circle key={i} cx={cx} cy={cy} r="2.5" />
+      ))}
+    </g>
+  </svg>
+);
+
 // permission modal -------------------------------------------------
 function PermissionModal({ open, label, onAllow, onDeny }) {
   if (!open) return null;
@@ -1630,15 +1693,21 @@ export default function App() {
   // ================================================================
   if (!currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
+      <div className="min-h-screen flex items-center justify-center p-4 font-sans relative overflow-hidden" style={{ backgroundColor: C.bg, color: C.text }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
+        {/* Decorative circuit-trace / network-mesh graphics — purely ambient
+            background texture, positioned in the corners like the reference
+            design. Hidden from screen readers, never intercept clicks. */}
+        <CircuitTraces className="hidden sm:block" style={{ left: 0, bottom: 0, width: 220, height: 220 }} />
+        <NetworkMesh className="hidden sm:block" style={{ right: 0, bottom: 0, width: 320, height: 230 }} />
+        <NetworkMesh className="hidden lg:block" style={{ left: -40, top: -30, width: 300, height: 220, opacity: 0.16, transform: 'rotate(180deg)' }} />
         <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={modeLabel} aria-label={modeLabel}>
           <span key={theme} className="theme-mode-icon inline-flex animate-[theme-icon-in_200ms_ease-out]">
             {theme === 'glass' ? <Sparkles className="w-4 h-4" /> : theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
           </span>
         </button>
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md relative">
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-3" style={{ backgroundColor: C.accentDim, border: `1px solid ${C.border}` }}>
               <ShieldCheck className="w-8 h-8" style={{ color: C.accent }} />
@@ -1855,8 +1924,11 @@ export default function App() {
       )}
 
       {/* SIDEBAR */}
-      <aside className={`fixed md:static inset-y-0 left-0 w-64 flex flex-col z-40 p-5 ${reducedMotion ? '' : 'transition-transform'} ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${sidebarCollapsed ? 'md:hidden' : ''}`} style={{ backgroundColor: C.panel, borderRight: `1px solid ${C.border}` }}>
-        <div className="flex items-center justify-between gap-3 mb-6">
+      <aside className={`fixed md:static inset-y-0 left-0 w-64 flex flex-col z-40 p-5 relative overflow-hidden ${reducedMotion ? '' : 'transition-transform'} ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${sidebarCollapsed ? 'md:hidden' : ''}`} style={{ backgroundColor: C.panel, borderRight: `1px solid ${C.border}` }}>
+        {/* Decorative circuit-trace graphic tucked in the bottom-left corner,
+            matching the reference design's sidebar/corner motif. */}
+        <CircuitTraces style={{ left: -12, bottom: -12, width: 160, height: 160, opacity: 0.22 }} />
+        <div className="flex items-center justify-between gap-3 mb-6 relative">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl shrink-0" style={{ backgroundColor: C.accentDim }}><ShieldCheck className="w-5 h-5" style={{ color: C.accent }} /></div>
             <h1 className="font-extrabold text-sm truncate">NESHS PORTAL</h1>
@@ -1878,7 +1950,7 @@ export default function App() {
           </button>
         )}
 
-        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 relative">
           <p className="text-[10px] font-bold uppercase mb-2 pl-1" style={{ color: C.textDim }}>Core Modules</p>
           {CORE_MODULES.map(m => {
             // Folders belonging to this module are nested directly beneath its
@@ -1916,7 +1988,7 @@ export default function App() {
           </button>
         </div>
 
-        <div className="mt-4 p-3 rounded-xl flex items-start gap-2" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
+        <div className="mt-4 p-3 rounded-xl flex items-start gap-2 relative" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
           <MapPin className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.accent }} />
           <div>
             <p className="text-[10px] font-extrabold leading-tight">{SCHOOL_NAME}</p>
