@@ -360,42 +360,33 @@ function PermissionModal({ open, label, onAllow, onDeny }) {
 function NeshsHomePage({ onEnterPortal }) {
   return (
     <div className="neshs-home-shell">
-      <div className="neshs-home-grid" />
       <header className="neshs-home-header">
-        <div className="neshs-pill">Presentation By <strong>SENIOR UNO</strong></div>
-        <div className="neshs-pill">WEBSITE STORAGE DRIVE</div>
-        <div className="neshs-pill">NAME / GRADE AND SECTION</div>
+        <div className="neshs-home-brand">
+          <span className="neshs-home-monogram" aria-hidden="true">NE</span>
+          <div>
+            <span className="neshs-home-brand-name">NESHS PORTAL</span>
+            <span className="neshs-home-brand-detail">NASUGBU EAST SENIOR HIGH SCHOOL</span>
+          </div>
+        </div>
+        <button className="neshs-enter-button" onClick={onEnterPortal}>ENTER PORTAL</button>
       </header>
 
       <main className="neshs-home-main">
-        <section className="neshs-home-copy">
-          <div className="neshs-kicker">NASUGBU EAST SENIOR HIGH</div>
-          <h1>
-            NESHS<br />
-            NASUGBU EAST<br />
-            SENIOR HIGH
-          </h1>
-        </section>
-
-        <section className="neshs-home-visual">
-          <div className="neshs-visual-block">
-            <div className="neshs-banner-tag">WELCOME TO ECHOES</div>
-            <div className="neshs-banner-text">
-              <span>WELCOME</span>
-              <span>TO</span>
-              <span>ECHOES</span>
-            </div>
+        <section className="neshs-home-hero" aria-labelledby="neshs-home-title">
+          <div className="neshs-home-hero-content">
+            <h1 className="neshs-home-title" id="neshs-home-title">NESHS</h1>
+            <p className="neshs-home-subtitle">Nasugbu East Senior High School</p>
+            <div className="neshs-home-welcome"><strong>WEL<span>COME</span></strong><span className="neshs-home-welcome-to">to</span></div>
+            <div className="neshs-home-echoes">ECH<span>OES</span></div>
+            <span className="neshs-home-tag">For education purpose</span>
           </div>
         </section>
       </main>
 
-      <div className="neshs-float-tag nht-left">FOR EDUCATION PURPOSE</div>
-      <div className="neshs-float-tag nht-right">SENIOR UNO COMMUNITY</div>
-      <div className="neshs-float-tag nht-bottom">RELEASE DATE: 2026</div>
-
-      <div className="neshs-home-actions">
-        <button className="neshs-enter-button" onClick={onEnterPortal}>ENTER PORTAL</button>
-      </div>
+      <footer className="neshs-home-meta" aria-label="Portal information">
+        <p>SENIOR UNO COMMUNITY</p>
+        <p>RELEASE DATE: 2026</p>
+      </footer>
     </div>
   );
 }
