@@ -55,10 +55,10 @@ export const COLOR_THEMES = [
     glass: glassTokens({ bg: 'transparent', accent: '#9B87F5', primaryHover: '#B0A0F8', text: '#F3F0FE', textDim: '#BBB0DE', onPrimary: '#14101F', gold: '#C084FC', glassGradient: 'radial-gradient(circle at 20% 0%, #241C42 0%, #14101F 55%, #0A0714 100%)', glassOrbOne: '#9B87F5', glassOrbTwo: '#C084FC', glassSurface: 'rgba(155,135,245,0.06)', glassSurfaceRgb: '155,135,245', glassBorder: 'rgba(155,135,245,0.15)', glassBorderRgb: '155,135,245', glassActive: 'rgba(155,135,245,0.18)', glassGlow: 'rgba(155,135,245,0.25)', glassBackdrop: 'rgba(10,7,20,0.82)', glassMediaOverlay: 'rgba(10,7,20,0.35)' })
   },
   {
-    id: 'lime-volt', label: 'Lime Volt', vivid: '#C4F542', nearWhite: '#F2FBDD', nearBlack: '#0B120A', swatch: '#C4F542',
+    id: 'lime-volt', label: 'Lime Volt', vivid: '#2BFF3E', nearWhite: '#EAF5E6', nearBlack: '#050A06', swatch: '#2BFF3E',
     light: withTokens({ bg: '#F7FBF0', panel: '#FFFFFF', panelAlt: '#EEF7E2', border: '#DFF0C8', accent: '#5FA815', accentDim: 'rgba(95,168,21,0.12)', highlight: '#4C8811', text: '#1B2A0D', textDim: '#5C6E4A', onPrimary: '#1B2A0D' }),
-    dark: withTokens({ bg: '#0B120A', panel: '#121A10', panelAlt: '#1C2915', border: '#263420', accent: '#C4F542', accentDim: 'rgba(196,245,66,0.16)', highlight: '#D4FF6B', text: '#EFFCE0', textDim: '#A8C48F', onPrimary: '#0B120A' }),
-    glass: glassTokens({ bg: 'transparent', accent: '#C4F542', primaryHover: '#D4FF6B', text: '#F5FEE8', textDim: '#C1D9A8', onPrimary: '#0B120A', gold: '#7FCC1E', glassGradient: 'radial-gradient(circle at 20% 0%, #16210F 0%, #0B120A 55%, #050A04 100%)', glassOrbOne: '#C4F542', glassOrbTwo: '#7FCC1E', glassSurface: 'rgba(196,245,66,0.06)', glassSurfaceRgb: '196,245,66', glassBorder: 'rgba(196,245,66,0.15)', glassBorderRgb: '196,245,66', glassActive: 'rgba(196,245,66,0.18)', glassGlow: 'rgba(196,245,66,0.25)', glassBackdrop: 'rgba(5,10,4,0.82)', glassMediaOverlay: 'rgba(5,10,4,0.35)' })
+    dark: withTokens({ bg: '#050A06', panel: '#0D1A10', panelAlt: '#122317', border: '#1D3A22', accent: '#2BFF3E', accentDim: 'rgba(43,255,62,0.12)', highlight: '#C4F53C', text: '#EAF5E6', textDim: '#8FAE8C', onPrimary: '#050A06' }),
+    glass: glassTokens({ bg: 'transparent', accent: '#2BFF3E', primaryHover: '#C4F53C', text: '#EAF5E6', textDim: '#8FAE8C', onPrimary: '#050A06', gold: '#C4F53C', glassGradient: 'radial-gradient(circle at 20% 0%, #0D1A10 0%, #050A06 55%, #020402 100%)', glassOrbOne: '#2BFF3E', glassOrbTwo: '#C4F53C', glassSurface: 'rgba(43,255,62,0.06)', glassSurfaceRgb: '43,255,62', glassBorder: 'rgba(43,255,62,0.15)', glassBorderRgb: '43,255,62', glassActive: 'rgba(43,255,62,0.18)', glassGlow: 'rgba(43,255,62,0.25)', glassBackdrop: 'rgba(2,4,2,0.82)', glassMediaOverlay: 'rgba(2,4,2,0.35)' })
   },
   {
     id: 'coral-ash', label: 'Coral Ash', vivid: '#F58F7C', nearWhite: '#F2C4CE', nearBlack: '#2C2B30', swatch: '#F58F7C',
@@ -98,7 +98,7 @@ export const getColorTheme = id => COLOR_THEMES.find(item => item.id === id) || 
 const readStoredTheme = () => {
   try {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return THEME_OPTIONS.has(stored) ? stored : 'light';
+    return THEME_OPTIONS.has(stored) ? stored : 'dark';
   } catch {
     return 'system';
   }
@@ -107,9 +107,10 @@ const readStoredTheme = () => {
 const readStoredColorTheme = () => {
   try {
     const stored = window.localStorage.getItem(COLOR_THEME_STORAGE_KEY);
-    return COLOR_THEME_IDS.has(stored) ? stored : COLOR_THEMES[0].id;
+    if (stored === 'cyber-mint') return 'lime-volt';
+    return COLOR_THEME_IDS.has(stored) ? stored : 'lime-volt';
   } catch {
-    return COLOR_THEMES[0].id;
+    return 'lime-volt';
   }
 };
 
@@ -164,6 +165,14 @@ export function ThemeProvider({ children }) {
     root.dataset.colorTheme = colorTheme;
     root.dataset.glassMode = theme === 'glass' ? 'true' : 'false';
     root.style.colorScheme = resolvedTheme === 'glass' ? 'dark' : resolvedTheme;
+    root.style.setProperty('--portal-bg', activePalette.bg);
+    root.style.setProperty('--portal-panel', activePalette.panel);
+    root.style.setProperty('--portal-panel-alt', activePalette.panelAlt);
+    root.style.setProperty('--portal-border', activePalette.border);
+    root.style.setProperty('--portal-accent', activePalette.accent);
+    root.style.setProperty('--portal-accent-dim', activePalette.accentDim);
+    root.style.setProperty('--portal-text', activePalette.text);
+    root.style.setProperty('--portal-text-dim', activePalette.textDim);
     root.style.setProperty('--glass-blur', glassValues.blur);
     root.style.setProperty('--glass-surface-opacity', glassValues.surfaceOpacity);
     root.style.setProperty('--glass-border-opacity', glassValues.borderOpacity);

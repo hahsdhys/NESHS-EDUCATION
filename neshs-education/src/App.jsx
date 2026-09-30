@@ -471,11 +471,6 @@ export default function App() {
   const hoverScale = reducedMotion ? '' : 'hover:scale-105';
   const { theme, resolvedTheme, setTheme: setThemeMode, colorTheme, setColorTheme, glassIntensity, setGlassIntensity } = useTheme();
 
-  useEffect(() => {
-    if (theme !== 'dark') setThemeMode('dark');
-    if (colorTheme !== 'cyber-mint') setColorTheme('cyber-mint');
-  }, [theme, colorTheme, setThemeMode, setColorTheme]);
-
   // Apply the active theme's colors in place, before anything renders this pass —
   // every atom below (Btn, Field, Card, Toggle, etc.) reads C.xxx live at render time.
   const selectedColorTheme = getColorTheme(colorTheme);
