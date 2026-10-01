@@ -358,35 +358,148 @@ function PermissionModal({ open, label, onAllow, onDeny }) {
 }
 
 function NeshsHomePage({ onEnterPortal }) {
+  const [activePage, setActivePage] = useState('home');
+  const [projectSearch, setProjectSearch] = useState('');
+  const [searchMessage, setSearchMessage] = useState('');
+  const { theme, setTheme: setThemeMode } = useTheme();
+  const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' || theme === 'system' ? 'glass' : 'light';
+  const themeLabel = theme === 'glass' ? 'Glass theme' : theme === 'dark' ? 'Dark theme' : 'Light theme';
+  const sections = [
+    ['home', 'Home'],
+    ['projects', 'Projects'],
+    ['students', 'Top students'],
+    ['quizzes', 'Quizzes'],
+    ['author', 'Author']
+  ];
+  const destinations = [
+    { title: 'Project History', detail: 'Browse learning materials and uploaded files.', icon: BookOpen },
+    { title: 'Announcements', detail: 'Read school news and class updates.', icon: Megaphone },
+    { title: 'Quizzes & Grades', detail: 'Open assessments, scores, and records.', icon: FileSpreadsheet },
+    { title: 'Best Students', detail: 'View the school achiever showcase.', icon: Award }
+  ];
+  const filteredDestinations = destinations.filter(item => item.title.toLowerCase().includes(projectSearch.trim().toLowerCase()));
+
   return (
-    <div className="neshs-home-shell">
-      <header className="neshs-home-header">
-        <div className="neshs-home-brand">
-          <span className="neshs-home-monogram" aria-hidden="true">NE</span>
+    <div className="echoes-landing">
+      <header className="echoes-header">
+        <button className="echoes-brand" onClick={() => setActivePage('home')} aria-label="NESHS Portal home">
+          <span className="echoes-seal" aria-hidden="true"><ShieldCheck /></span>
           <div>
-            <span className="neshs-home-brand-name">NESHS PORTAL</span>
-            <span className="neshs-home-brand-detail">NASUGBU EAST SENIOR HIGH SCHOOL</span>
+            <span className="echoes-brand-name">NESHS Portal</span>
+            <span className="echoes-brand-detail">Nasugbu East Senior High School</span>
           </div>
+        </button>
+        <nav className="echoes-nav" aria-label="Main navigation">
+          {sections.map(([id, label]) => (
+            <button key={id} onClick={() => setActivePage(id)} aria-current={activePage === id ? 'page' : undefined}>
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="echoes-actions">
+          <button className="echoes-icon-button" onClick={() => setThemeMode(nextTheme)} title={themeLabel} aria-label={`Switch from ${themeLabel.toLowerCase()}`}>
+            {theme === 'glass' ? <Sparkles /> : theme === 'dark' ? <Moon /> : <Sun />}
+          </button>
+          <button className="echoes-settings-button" onClick={onEnterPortal}><Settings /> <span>Settings</span></button>
+          <button className="echoes-enter-button" onClick={onEnterPortal}>Sign in <ArrowRight /></button>
         </div>
-        <button className="neshs-enter-button" onClick={onEnterPortal}>ENTER PORTAL</button>
       </header>
 
-      <main className="neshs-home-main">
-        <section className="neshs-home-hero" aria-labelledby="neshs-home-title">
-          <div className="neshs-home-hero-content">
-            <h1 className="neshs-home-title" id="neshs-home-title">NESHS</h1>
-            <p className="neshs-home-subtitle">Nasugbu East Senior High School</p>
-            <div className="neshs-home-welcome"><strong>WEL<span>COME</span></strong><span className="neshs-home-welcome-to">to</span></div>
-            <div className="neshs-home-echoes">ECH<span>OES</span></div>
-            <span className="neshs-home-tag">For education purpose</span>
-          </div>
-        </section>
+      <main className="echoes-main">
+        {activePage === 'home' && (
+          <section className="echoes-page" aria-labelledby="echoes-home-title">
+            <div className="echoes-hero">
+              <div className="echoes-hero-copy">
+                <p className="echoes-eyebrow">Nasugbu East Senior High School</p>
+                <h1 id="echoes-home-title">NESHS</h1>
+                <div className="echoes-welcome"><strong>WEL<span>COME</span></strong><span>to</span></div>
+                <p className="echoes-wordmark">ECH<span>OES</span></p>
+                <p className="echoes-tag">A learning community by Senior Uno</p>
+                <div className="echoes-hero-actions">
+                  <button className="echoes-enter-button" onClick={onEnterPortal}>Enter the portal <ArrowRight /></button>
+                  <button className="echoes-text-button" onClick={() => setActivePage('projects')}>Explore learning materials</button>
+                </div>
+              </div>
+              <div className="echoes-hero-mark" aria-hidden="true"><span>E</span><span>+</span></div>
+            </div>
+            <div className="echoes-community-line">
+              <span>Senior Uno Community</span>
+              <span>Learning resources · Quizzes · Student achievements</span>
+              <span>School year 2026–2027</span>
+            </div>
+            <div className="echoes-section-heading">
+              <div><span className="echoes-kicker">Your learning space</span><h2>Start somewhere curious.</h2></div>
+              <button className="echoes-text-button" onClick={() => setActivePage('projects')}>View all destinations <ArrowRight /></button>
+            </div>
+            <DestinationGrid destinations={destinations.slice(0, 3)} onOpen={onEnterPortal} />
+          </section>
+        )}
+
+        {activePage === 'projects' && (
+          <section className="echoes-page" aria-labelledby="echoes-projects-title">
+            <div className="echoes-page-heading"><span className="echoes-kicker">Explore the portal</span><h1 id="echoes-projects-title">Projects & resources</h1><p>Learning materials, school updates, assessments, and student work in one place.</p></div>
+            <form className="echoes-search" onSubmit={event => { event.preventDefault(); setSearchMessage(projectSearch.trim() ? `${filteredDestinations.length} destination${filteredDestinations.length === 1 ? '' : 's'} found.` : 'Showing all destinations.'); }}>
+              <Search />
+              <input aria-label="Search portal destinations" placeholder="Search portal destinations" value={projectSearch} onChange={event => setProjectSearch(event.target.value)} />
+              <button type="submit">Search</button>
+            </form>
+            <p className="echoes-search-message" aria-live="polite">{searchMessage}</p>
+            <DestinationGrid destinations={filteredDestinations} onOpen={onEnterPortal} />
+            {filteredDestinations.length === 0 && <p className="echoes-empty">No destinations match that search.</p>}
+          </section>
+        )}
+
+        {activePage === 'students' && (
+          <section className="echoes-page" aria-labelledby="echoes-students-title">
+            <div className="echoes-page-heading"><span className="echoes-kicker">Student showcase</span><h1 id="echoes-students-title">Top students</h1><p>Celebrate academic effort and achievements across the NESHS community.</p></div>
+            <div className="echoes-feature-row">
+              <div className="echoes-feature-copy"><Award /><h2>Achievement starts with effort.</h2><p>Sign in to see the current achiever showcase and the latest school recognition.</p><button className="echoes-enter-button" onClick={onEnterPortal}>View student showcase <ArrowRight /></button></div>
+              <div className="echoes-stat-block"><span>01</span><p>Best students</p><small>Academic achievers · S.Y. 2026–2027</small></div>
+            </div>
+          </section>
+        )}
+
+        {activePage === 'quizzes' && (
+          <section className="echoes-page" aria-labelledby="echoes-quizzes-title">
+            <div className="echoes-page-heading"><span className="echoes-kicker">Practice and progress</span><h1 id="echoes-quizzes-title">Quizzes & grades</h1><p>Open your assigned activities, submit answers, and review recorded results.</p></div>
+            <div className="echoes-feature-row echoes-quiz-feature">
+              <div className="echoes-feature-copy"><FileSpreadsheet /><h2>Ready when you are.</h2><p>Sign in to access active quizzes, class records, and assessment results.</p><button className="echoes-enter-button" onClick={onEnterPortal}>Go to quizzes <ArrowRight /></button></div>
+              <div className="echoes-quiz-mark" aria-hidden="true"><span>Q</span><span>01</span><span>02</span><span>03</span></div>
+            </div>
+          </section>
+        )}
+
+        {activePage === 'author' && (
+          <section className="echoes-page" aria-labelledby="echoes-author-title">
+            <div className="echoes-page-heading"><span className="echoes-kicker">The creator</span><h1 id="echoes-author-title">About ECHOES</h1></div>
+            <div className="echoes-author-layout">
+              <div className="echoes-author-seal"><ShieldCheck /></div>
+              <div><span className="echoes-pill">Senior Uno</span><h2>Nasugbu East Senior High School</h2><p>NESHS Education is a digital learning platform created to make education more interactive, engaging, and learner-centered. Access learning materials, share student work, and test understanding through quizzes.</p><p className="echoes-author-signoff">Learn at your pace. Engage with every lesson. Grow through every activity.</p><button className="echoes-enter-button" onClick={onEnterPortal}>Enter the portal <ArrowRight /></button></div>
+            </div>
+          </section>
+        )}
       </main>
 
-      <footer className="neshs-home-meta" aria-label="Portal information">
-        <p>SENIOR UNO COMMUNITY</p>
-        <p>RELEASE DATE: 2026</p>
+      <footer className="echoes-footer">
+        <span>NESHS Portal <span className="echoes-footer-dot">/</span> Senior Uno</span>
+        <span>For education purpose</span>
       </footer>
+    </div>
+  );
+}
+
+function DestinationGrid({ destinations, onOpen }) {
+  return (
+    <div className="echoes-destinations">
+      {destinations.map(({ title, detail, icon: Icon }, index) => (
+        <button key={title} className="echoes-destination" onClick={onOpen}>
+          <span className="echoes-destination-index">0{index + 1}</span>
+          <span className="echoes-destination-icon"><Icon /></span>
+          <span className="echoes-destination-title">{title}</span>
+          <span className="echoes-destination-detail">{detail}</span>
+          <span className="echoes-destination-link">Open portal <ArrowRight /></span>
+        </button>
+      ))}
     </div>
   );
 }
