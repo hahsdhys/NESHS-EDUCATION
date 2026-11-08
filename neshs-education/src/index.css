@@ -310,37 +310,50 @@ html[data-glass-mode='true'] aside .active-nav-item {
 .neshs-home-hero {
   position: relative;
   display: flex;
-  min-height: 470px;
   width: 100%;
   align-items: center;
   overflow: hidden;
   border-radius: 28px;
-  background: linear-gradient(115deg, #2a8f3c 0%, #6fb867 100%);
-  color: #0d1a10;
+  background: linear-gradient(135deg, var(--hero-from, #2a8f3c), var(--hero-to, #6fb867));
+  color: var(--hero-white, #fff);
   isolation: isolate;
+}
+
+.neshs-home-hero::after {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -6%;
+  width: 46%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 65%);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .neshs-home-hero-content {
   position: relative;
   z-index: 1;
-  padding: 3rem clamp(2rem, 6vw, 6rem);
+  width: 100%;
+  padding: clamp(24px, 5vw, 56px);
 }
 
 .neshs-home-title {
   margin: 0;
-  font-family: 'Unbounded', sans-serif;
-  font-size: 4.8rem;
+  font-family: 'Unbounded', 'Arial Black', sans-serif;
+  font-size: clamp(40px, 8vw, 96px);
   line-height: 1;
   font-weight: 800;
   text-transform: uppercase;
-  color: #03400f;
-  letter-spacing: 0;
+  letter-spacing: -0.03em;
+  color: var(--hero-ink, #03400f);
 }
 
 .neshs-home-subtitle {
-  margin: 0.4rem 0 1.35rem;
-  color: rgba(13, 26, 16, 0.82);
-  font-size: 0.9rem;
+  margin: 6px 0 14px;
+  color: var(--hero-ink, #03400f);
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
@@ -348,49 +361,135 @@ html[data-glass-mode='true'] aside .active-nav-item {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.4rem 1.2rem;
+  gap: 8px 20px;
 }
 
 .neshs-home-welcome strong {
-  color: #0d1a10;
-  font-family: 'Unbounded', sans-serif;
-  font-size: 3.8rem;
+  color: var(--hero-white, #fff);
+  font-family: 'Unbounded', 'Arial Black', sans-serif;
+  font-size: clamp(30px, 6vw, 64px);
   font-weight: 800;
   line-height: 1.05;
 }
 
 .neshs-home-welcome strong span {
-  color: #0fa22a;
+  color: var(--hero-echo, #15c034);
 }
 
 .neshs-home-welcome-to {
-  color: #0d1a10;
+  color: var(--hero-white, #fff);
   font-weight: 600;
 }
 
 .neshs-home-echoes {
-  margin-top: 0.1rem;
-  color: #15c034;
-  font-family: 'Unbounded', sans-serif;
-  font-size: 6.2rem;
+  color: var(--hero-echo, #15c034);
+  font-family: 'Unbounded', 'Arial Black', sans-serif;
+  font-size: clamp(44px, 9vw, 110px);
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
   transform: skew(-8deg);
+  transform-origin: left center;
 }
 
 .neshs-home-echoes span {
-  color: #fff;
+  color: var(--hero-white, #fff);
 }
 
 .neshs-home-tag {
   display: inline-flex;
   max-width: 100%;
-  margin-top: 1.35rem;
-  padding: 0.7rem 1.25rem;
+  margin-top: 22px;
+  padding: 12px 22px;
   background: #f4f4f2;
   color: #111;
   font-size: 0.86rem;
   font-weight: 600;
+}
+
+.neshs-hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 12px 22px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.neshs-hero-btn-solid {
+  border: 2px solid #f4f4f2;
+  background: #f4f4f2;
+  color: #111;
+}
+
+.neshs-hero-btn-outline {
+  border: 2px solid var(--hero-ink, #03400f);
+  background: transparent;
+  color: var(--hero-ink, #03400f);
+}
+
+.neshs-hero-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* Skewed file tiles from the ECHOES design */
+.echo-tile {
+  padding: 20px 8px 14px;
+  border: 2px solid var(--tile-line, #2bff3e);
+  border-radius: 12px;
+  background: var(--tile-bg, #122317);
+  box-shadow: 0 0 18px var(--tile-glow, rgba(43, 255, 62, 0.2));
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+  transform: skew(-8deg);
+  transition: transform 150ms ease;
+}
+
+.echo-tile:hover {
+  transform: skew(-8deg) translateY(-3px);
+}
+
+.echo-tile-inner {
+  display: block;
+  transform: skew(8deg);
+}
+
+.font-display {
+  font-family: 'Unbounded', 'Arial Black', sans-serif;
+}
+
+/* Grid + glow backdrop for the signed-in shell and login screen.
+   Skipped in Glass mode, which paints its own gradient and orbs. */
+html:not([data-glass-mode='true']) .echo-shell {
+  background-image:
+    radial-gradient(circle at 85% -10%, color-mix(in srgb, var(--echo-glow, #2bff3e) 14%, transparent) 0, transparent 45%),
+    linear-gradient(transparent 96%, color-mix(in srgb, var(--echo-glow, #2bff3e) 8%, transparent) 0),
+    linear-gradient(90deg, transparent 96%, color-mix(in srgb, var(--echo-glow, #2bff3e) 8%, transparent) 0);
+  background-size: auto, 40px 40px, 40px 40px;
+}
+
+.echo-seal {
+  border: 2px solid #b7d23a;
+  border-radius: 50%;
+  background: radial-gradient(#e8d84a 55%, #3a8f2a 56%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-tile,
+  .neshs-hero-btn {
+    transition-duration: 0ms;
+  }
+
+  .echo-tile:hover {
+    transform: skew(-8deg);
+  }
+
+  .neshs-hero-btn:hover {
+    transform: none;
+  }
 }
 
 .neshs-home-meta {
@@ -474,24 +573,7 @@ html[data-glass-mode='true'] aside .active-nav-item {
   }
 
   .neshs-home-hero {
-    min-height: 390px;
     border-radius: 22px;
-  }
-
-  .neshs-home-hero-content {
-    padding: 2.5rem 1.5rem;
-  }
-
-  .neshs-home-title {
-    font-size: 3.15rem;
-  }
-
-  .neshs-home-welcome strong {
-    font-size: 2.35rem;
-  }
-
-  .neshs-home-echoes {
-    font-size: 3.15rem;
   }
 
   .neshs-home-meta {

@@ -2,14 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { cleanMediaUrl } from './utils/cleanMediaUrl';
 import { COLOR_THEMES, getColorTheme, useTheme } from './ThemeContext.jsx';
+import HomeView from './HomeView.jsx';
 import {
-  ShieldCheck, User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
+  User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
   Megaphone, CheckCircle, Lock, Unlock, Menu, X,
   Download, Bell, FolderPlus, Folder, ArrowRight, MapPin,
   Plus, Edit, Trash2, Image as ImageIcon, FileText, Upload, ChevronLeft,
   Play, ScanLine, KeyRound, Quote, GraduationCap,
   Settings, ExternalLink, Loader2, Sun, Moon, Sparkles, Eye, EyeOff, Globe,
-  Zap, FolderCog, ChevronDown, Info
+  Zap, FolderCog, ChevronDown, Info, Home as HomeIcon
 } from 'lucide-react';
 
 // Mutated in place so the shared UI atoms read the active provider palette.
@@ -794,7 +795,7 @@ export default function App() {
     if (f) logAction('deleted folder', filesInside > 0 ? `${f.title} (${filesInside} file${filesInside === 1 ? '' : 's'})` : f.title);
   };
 
-  const [activeTab, setActiveTab] = useState('announcements');
+  const [activeTab, setActiveTab] = useState('home');
   const activeFolder = folders.find(f => f.id === activeTab);
   const activeModule = activeFolder ? activeFolder.module : activeTab;
   const activeFolderId = activeFolder ? activeFolder.id : null;
@@ -856,6 +857,9 @@ export default function App() {
   const [onlinePanelOpen, setOnlinePanelOpen] = useState(false);
   const visibleOnlineUsers = onlineUsers.filter(u => u.visible !== false);
   const presenceChannelRef = useRef(null);
+  // True only while the realtime presence channel is actually subscribed — the
+  // homepage's Live badge reads this so it never claims "Live" while offline.
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
 
   // ------------------------------------------------------------
   // announcements
@@ -1395,7 +1399,9 @@ export default function App() {
         setOnlineUsers(merged);
       })
       .subscribe(async (status) => {
+        if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') setRealtimeConnected(false);
         if (status === 'SUBSCRIBED') {
+          setRealtimeConnected(true);
           presenceChannelRef.current = channel;
           if (currentUser) {
             channel.track({ email: currentUser.email, name: currentUser.name, role: currentUser.role, sectionId: currentUser.sectionId || null, visible: settings.profileVisibility !== false });
@@ -1403,6 +1409,7 @@ export default function App() {
         }
       });
     return () => {
+      setRealtimeConnected(false);
       channel.untrack();
       supabase.removeChannel(channel);
       if (presenceChannelRef.current === channel) presenceChannelRef.current = null;
@@ -1495,8 +1502,8 @@ export default function App() {
       if (!existing) setAccounts(prev => [...prev, creatorAccount]);
       setCurrentUser(creatorAccount);
       markUserOnline(creatorAccount);
-      // Apply the Default Directory preference on login, falling back to Announcements.
-      setActiveTab(settings.defaultDirectory || 'announcements');
+      // Apply the Default Directory preference on login, falling back to the Home page.
+      setActiveTab(settings.defaultDirectory || 'home');
       logAction('signed in', CREATOR_EMAIL);
       return;
     }
@@ -1506,7 +1513,7 @@ export default function App() {
     if (acc.password !== signinPassword) return setAuthError('Incorrect password.');
     setCurrentUser(acc);
     markUserOnline(acc);
-    setActiveTab(settings.defaultDirectory || 'announcements');
+    setActiveTab(settings.defaultDirectory || 'home');
     logAction('signed in', acc.email);
   };
 
@@ -1582,7 +1589,7 @@ export default function App() {
     setAccounts(prev => [...prev, account]);
     setCurrentUser(account);
     markUserOnline(account);
-    setActiveTab(settings.defaultDirectory || 'announcements');
+    setActiveTab(settings.defaultDirectory || 'home');
     logAction('account created', account.email);
     resetWizard();
   };
@@ -1590,7 +1597,7 @@ export default function App() {
   const handleLogout = () => {
     if (currentUser) markUserOffline(currentUser.email);
     setCurrentUser(null);
-    setActiveTab('announcements');
+    setActiveTab('home');
     setPortalTitleEditing(false);
     resetWizard();
   };
@@ -1630,7 +1637,7 @@ export default function App() {
   // ================================================================
   if (!currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 font-sans relative" style={{ backgroundColor: C.bg, color: C.text }}>
+      <div className="min-h-screen flex items-center justify-center p-4 font-sans relative echo-shell" style={{ backgroundColor: C.bg, color: C.text, '--echo-glow': C.glow }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
         <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={modeLabel} aria-label={modeLabel}>
@@ -1640,10 +1647,8 @@ export default function App() {
         </button>
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-3" style={{ backgroundColor: C.accentDim, border: `1px solid ${C.border}` }}>
-              <ShieldCheck className="w-8 h-8" style={{ color: C.accent }} />
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight">NESHS PORTAL</h1>
+            <div className="echo-seal w-16 h-16 mx-auto mb-3" aria-hidden="true" />
+            <h1 className="text-2xl font-extrabold tracking-tight font-display">NESHS Portal</h1>
             <p className="text-[11px] uppercase font-semibold tracking-wider" style={{ color: C.textDim }}>{SCHOOL_NAME}</p>
           </div>
 
@@ -1797,14 +1802,17 @@ export default function App() {
   // ================================================================
   const sectionOptions = sections.length > 0 ? sections : [];
   // Directory options a Default Directory dropdown can point at: core modules + custom folders.
-  const directoryOptions = [...CORE_MODULES.map(m => ({ id: m.id, title: m.label })), ...folders.map(f => ({ id: f.id, title: f.title }))];
+  const directoryOptions = [{ id: 'home', title: 'Home' }, ...CORE_MODULES.map(m => ({ id: m.id, title: m.label })), ...folders.map(f => ({ id: f.id, title: f.title }))];
+  // Same behaviour as tapping a sidebar module: switch view, close the mobile
+  // drawer and reset per-view sub-state. The live Home page uses this too.
+  const goToModule = (id) => { setActiveTab(id); setMobileNavOpen(false); setQuizMode('list'); setExpandedAchieverId(null); };
   const activeQuiz = quizzes.find(q => q.id === activeQuizId) || null;
   const activeQuizRecords = quizRecords.filter(r => r.quizId === activeQuizId);
   const recordSections = Array.from(new Set(activeQuizRecords.map(r => (r.section || '').trim()).filter(Boolean))).sort();
   const filteredQuizRecords = recordSectionFilter === 'all' ? activeQuizRecords : activeQuizRecords.filter(r => (r.section || '').trim() === recordSectionFilter);
 
   return (
-    <div className="min-h-screen flex font-sans" style={{ backgroundColor: C.bg, color: C.text }}>
+    <div className="min-h-screen flex font-sans echo-shell" style={{ backgroundColor: C.bg, color: C.text, '--echo-glow': C.glow }}>
       <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
 
@@ -1858,8 +1866,8 @@ export default function App() {
       <aside className={`fixed md:static inset-y-0 left-0 w-64 flex flex-col z-40 p-5 ${reducedMotion ? '' : 'transition-transform'} ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${sidebarCollapsed ? 'md:hidden' : ''}`} style={{ backgroundColor: C.panel, borderRight: `1px solid ${C.border}` }}>
         <div className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-xl shrink-0" style={{ backgroundColor: C.accentDim }}><ShieldCheck className="w-5 h-5" style={{ color: C.accent }} /></div>
-            <h1 className="font-extrabold text-sm truncate">NESHS PORTAL</h1>
+            <div className="echo-seal w-9 h-9 shrink-0" aria-hidden="true" />
+            <h1 className="font-extrabold text-sm truncate font-display">NESHS Portal</h1>
           </div>
           {/* Close button — collapses the sidebar on desktop; on mobile it hides the slide-in nav. */}
           <button
@@ -1879,6 +1887,9 @@ export default function App() {
         )}
 
         <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+          <button onClick={() => goToModule('home')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold mb-3 ${activeTab === 'home' ? 'active-nav-item' : ''}`} style={activeTab === 'home' ? { backgroundColor: C.accent, color: C.onPrimary, border: `1px solid ${C.accent}` } : { color: C.textDim }} aria-current={activeTab === 'home' ? 'page' : undefined}>
+            <HomeIcon className="w-4 h-4" /> Home
+          </button>
           <p className="text-[10px] font-bold uppercase mb-2 pl-1" style={{ color: C.textDim }}>Core Modules</p>
           {CORE_MODULES.map(m => {
             // Folders belonging to this module are nested directly beneath its
@@ -1887,14 +1898,14 @@ export default function App() {
             const moduleFolders = m.id === 'projectHistory' ? [] : folders.filter(f => f.module === m.id);
             return (
               <div key={m.id}>
-                <button onClick={() => { setActiveTab(m.id); setMobileNavOpen(false); setQuizMode('list'); setExpandedAchieverId(null); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold ${activeTab === m.id ? 'active-nav-item' : ''}`} style={activeTab === m.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
+                <button onClick={() => { setActiveTab(m.id); setMobileNavOpen(false); setQuizMode('list'); setExpandedAchieverId(null); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold ${activeTab === m.id ? 'active-nav-item' : ''}`} style={activeTab === m.id ? { backgroundColor: C.accent, color: C.onPrimary, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
                   <m.icon className="w-4 h-4" /> {m.label}
                 </button>
                 {moduleFolders.length > 0 && (
                   <div className="ml-4 mt-1 space-y-1 pl-2" style={{ borderLeft: `1px solid ${C.border}` }}>
                     {moduleFolders.map(f => (
                       <div key={f.id} className="flex items-center gap-1">
-                        <button onClick={() => { setActiveTab(f.id); setMobileNavOpen(false); }} className={`flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-semibold ${activeTab === f.id ? 'active-nav-item' : ''}`} style={activeTab === f.id ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
+                        <button onClick={() => { setActiveTab(f.id); setMobileNavOpen(false); }} className={`flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-semibold ${activeTab === f.id ? 'active-nav-item' : ''}`} style={activeTab === f.id ? { backgroundColor: C.accent, color: C.onPrimary, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
                           <Folder className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{f.title}</span>
                         </button>
                         {canEditEverything && (
@@ -1911,7 +1922,7 @@ export default function App() {
           })}
 
           <p className="text-[10px] font-bold uppercase mt-4 mb-2 pl-1" style={{ color: C.textDim }}>System</p>
-          <button onClick={() => setActiveTab('author')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold ${activeTab === 'author' ? 'active-nav-item' : ''}`} style={activeTab === 'author' ? { backgroundColor: C.accentDim, color: C.accent, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
+          <button onClick={() => setActiveTab('author')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold ${activeTab === 'author' ? 'active-nav-item' : ''}`} style={activeTab === 'author' ? { backgroundColor: C.accent, color: C.onPrimary, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
             <User className="w-4 h-4" /> Author Profile
           </button>
         </div>
@@ -2004,14 +2015,19 @@ export default function App() {
 
             {/* Top-right profile widget: name, section (students only), and role — hidden
                 behind the Profile Visibility privacy toggle when the user opts out. */}
-            <div className="text-right hidden sm:block">
-              <p className="text-xs font-bold flex items-center justify-end gap-1.5">
-                {currentUser.name}
-                {!settings.profileVisibility && <EyeOff className="w-3 h-3" style={{ color: C.textDim }} title="Your active status is hidden from other students" />}
-              </p>
-              <p className="text-[10px] uppercase" style={{ color: C.accent }}>
-                {currentUser.role}{currentUserSection ? ` \u00b7 ${currentUserSection.title}` : ''}
-              </p>
+            <div className="hidden sm:flex items-center gap-2.5 rounded-full py-1 pl-4 pr-1" style={{ backgroundColor: C.accentDim, border: `1px solid ${C.border}` }}>
+              <div className="text-right leading-tight">
+                <p className="text-xs font-bold flex items-center justify-end gap-1.5">
+                  {currentUser.name}
+                  {!settings.profileVisibility && <EyeOff className="w-3 h-3" style={{ color: C.textDim }} title="Your active status is hidden from other students" />}
+                </p>
+                <p className="text-[10px] uppercase" style={{ color: C.accent }}>
+                  {currentUser.role}{currentUserSection ? ` \u00b7 ${currentUserSection.title}` : ''}
+                </p>
+              </div>
+              <span className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0" style={{ backgroundColor: C.accent, color: C.onPrimary }} aria-hidden="true">
+                {(currentUser.name || '?').trim().charAt(0).toUpperCase()}
+              </span>
             </div>
 
             <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={modeLabel} aria-label={modeLabel}>
@@ -2026,7 +2042,29 @@ export default function App() {
           </div>
         </header>
 
-        <main className="p-6 max-w-5xl w-full mx-auto pb-24">
+        <main className={`p-6 ${activeTab === 'home' ? 'max-w-6xl' : 'max-w-5xl'} w-full mx-auto pb-24`}>
+          {/* LIVE HOME */}
+          {activeTab === 'home' && (
+            <HomeView
+              palette={C}
+              user={currentUser}
+              schoolName={SCHOOL_NAME}
+              reducedMotion={reducedMotion}
+              isConfigured={supabaseConfigured}
+              isLive={supabaseConfigured && realtimeConnected}
+              onlineUsers={visibleOnlineUsers}
+              announcements={announcements}
+              achievers={achievers}
+              quizzes={quizzes}
+              quizRecords={quizRecords}
+              folders={folders}
+              projectFiles={projectFiles}
+              notifications={notifications}
+              onNavigate={goToModule}
+              onOpenOnline={() => setOnlinePanelOpen(true)}
+            />
+          )}
+
           {/* AUTHOR PROFILE */}
           {activeTab === 'author' && (
             <div>
@@ -2923,8 +2961,8 @@ export default function App() {
                 desc="The section that loads automatically when you sign in."
                 control={
                   <Select value={settings.defaultDirectory} onChange={e => handleSettingChange('defaultDirectory', e.target.value)} className="!w-40 !py-2 text-xs">
-                    <option value="">Announcements</option>
-                    {directoryOptions.filter(d => d.id !== 'announcements').map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
+                    <option value="">Home</option>
+                    {directoryOptions.filter(d => d.id !== 'home').map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
                   </Select>
                 }
               />
