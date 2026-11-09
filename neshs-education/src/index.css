@@ -465,13 +465,10 @@ html[data-glass-mode='true'] aside .active-nav-item {
    Skipped in Glass mode, which paints its own gradient and orbs. */
 html:not([data-glass-mode='true']) .echo-shell {
   background-image:
-    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--echo-glow, #2bff3e) 22%, transparent) 0, transparent 32%),
-    radial-gradient(circle at 70% 85%, color-mix(in srgb, var(--echo-glow, #2bff3e) 16%, transparent) 0, transparent 38%),
     radial-gradient(circle at 85% -10%, color-mix(in srgb, var(--echo-glow, #2bff3e) 14%, transparent) 0, transparent 45%),
     linear-gradient(transparent 96%, color-mix(in srgb, var(--echo-glow, #2bff3e) 8%, transparent) 0),
     linear-gradient(90deg, transparent 96%, color-mix(in srgb, var(--echo-glow, #2bff3e) 8%, transparent) 0);
-  background-size: auto, auto, auto, 40px 40px, 40px 40px;
-  background-attachment: fixed;
+  background-size: auto, 40px 40px, 40px 40px;
 }
 
 .echo-seal {
@@ -615,20 +612,18 @@ html:not([data-glass-mode='true']) .echo-shell {
 	-webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-saturate));
 	}
 }
-/* ===== Claymorphism surfaces + glassmorphism menu ===== */
+/* ===== Claymorphism surfaces ===== */
 .echo-shell {
   --clay-dark: rgba(0, 0, 0, 0.5);
   --clay-light: rgba(255, 255, 255, 0.07);
   --clay-in-light: rgba(255, 255, 255, 0.10);
   --clay-in-dark: rgba(0, 0, 0, 0.38);
-  --glass-edge: rgba(255, 255, 255, 0.16);
 }
 html[data-theme='light'] .echo-shell {
   --clay-dark: rgba(70, 80, 100, 0.22);
   --clay-light: rgba(255, 255, 255, 0.95);
   --clay-in-light: rgba(255, 255, 255, 0.85);
   --clay-in-dark: rgba(70, 80, 100, 0.16);
-  --glass-edge: rgba(255, 255, 255, 0.7);
 }
 
 /* Cards: puffy, soft, inflated */
@@ -675,18 +670,18 @@ html:not([data-glass-mode='true']) .echo-shell :is(input, textarea, select):not(
     inset -3px -3px 8px var(--clay-in-light);
 }
 
-/* Menu: frosted glass floating over the clay */
+/* Menu: clay panels */
 html:not([data-glass-mode='true']) .echo-shell aside,
 html:not([data-glass-mode='true']) .echo-shell header {
-  background-color: color-mix(in srgb, var(--echo-panel, #0d1a10) 42%, transparent) !important;
-  background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02) 55%);
-  backdrop-filter: blur(22px) saturate(1.6);
-  -webkit-backdrop-filter: blur(22px) saturate(1.6);
-  border: 1px solid var(--glass-edge) !important;
+  background-image: linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.12));
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-color: transparent !important;
   box-shadow:
-    0 18px 40px var(--clay-dark),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+    12px 14px 28px var(--clay-dark),
+    -8px -8px 20px var(--clay-light),
+    inset 5px 5px 10px var(--clay-in-light),
+    inset -7px -9px 16px var(--clay-in-dark);
 }
 html:not([data-glass-mode='true']) .echo-shell header {
   margin: 12px 16px 0;
@@ -706,7 +701,7 @@ html:not([data-glass-mode='true']) .echo-shell aside {
     overflow-y: auto;
   }
 }
-/* Nav items inside the glass: clay chips */
+/* Nav items: clay chips */
 html:not([data-glass-mode='true']) .echo-shell aside button {
   border-radius: 16px;
 }

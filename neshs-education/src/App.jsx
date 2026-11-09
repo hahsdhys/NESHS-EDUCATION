@@ -1637,7 +1637,7 @@ export default function App() {
   // ================================================================
   if (!currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 font-sans relative echo-shell" style={{ backgroundColor: C.bg, color: C.text, '--echo-glow': C.glow, '--echo-panel': C.panel }}>
+      <div className="min-h-screen flex items-center justify-center p-4 font-sans relative echo-shell" style={{ backgroundColor: C.bg, color: C.text, '--echo-glow': C.glow }}>
         <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
         <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
         <button onClick={toggleTheme} className={`theme-mode-toggle p-2 rounded-lg ${motionTransition}`} style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.accent }} title={modeLabel} aria-label={modeLabel}>
@@ -1812,7 +1812,7 @@ export default function App() {
   const filteredQuizRecords = recordSectionFilter === 'all' ? activeQuizRecords : activeQuizRecords.filter(r => (r.section || '').trim() === recordSectionFilter);
 
   return (
-    <div className="min-h-screen flex font-sans echo-shell" style={{ backgroundColor: C.bg, color: C.text, '--echo-glow': C.glow, '--echo-panel': C.panel }}>
+    <div className="min-h-screen flex font-sans echo-shell" style={{ backgroundColor: C.bg, color: C.text, '--echo-glow': C.glow }}>
       <PermissionModal open={permission.open} label={permission.label} onAllow={permission.onAllow} onDeny={closePermission} />
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilesSelected} />
 
