@@ -761,3 +761,72 @@ html:not([data-glass-mode='true']) .echo-shell aside button.active-nav-item {
 @media (prefers-reduced-motion: reduce) {
   .echo-story-card { transition: none; transform: none; opacity: 1; }
 }
+
+/* ===== HUD look from the ECHOES presentation ===== */
+.hud { position: relative; }
+.hud::before, .hud::after {
+  content: ''; position: absolute; width: 20px; height: 20px; pointer-events: none;
+  border: 2px solid var(--echo-glow, #2bff3e);
+}
+.hud::before { top: 10px; left: 10px; border-right: 0; border-bottom: 0; border-radius: 6px 0 0 0; }
+.hud::after { bottom: 10px; right: 10px; border-left: 0; border-top: 0; border-radius: 0 0 6px 0; }
+html:not([data-glass-mode='true']) .echo-shell .hud {
+  border-radius: 18px;
+  border-color: color-mix(in srgb, var(--echo-glow, #2bff3e) 32%, transparent) !important;
+  background-image: linear-gradient(160deg, color-mix(in srgb, var(--echo-glow, #2bff3e) 7%, transparent), transparent 55%);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--echo-glow, #2bff3e) 10%, transparent), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.hud-tag {
+  display: inline-flex; align-items: center; gap: 0.5rem; align-self: flex-start;
+  padding: 0.5rem 1.6rem 0.5rem 0.9rem; margin-bottom: 1rem;
+  background: #fff; color: #0a1400;
+  font-family: 'Unbounded', sans-serif; font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
+}
+.echo-story-title {
+  font-family: 'Unbounded', sans-serif; font-weight: 800; text-transform: uppercase;
+  font-size: clamp(1.6rem, 4vw, 2.8rem); line-height: 1.05; letter-spacing: -0.01em; margin-bottom: 0.75rem;
+}
+.hud-line {
+  display: block; height: 2px; width: 100%; max-width: 28rem; margin-bottom: 1rem;
+  background: linear-gradient(90deg, var(--echo-glow, #2bff3e), transparent);
+}
+.hud-rows { list-style: none; margin: 0; padding: 0; max-width: 34rem; }
+.hud-rows li {
+  display: flex; align-items: center; gap: 0.7rem; padding: 0.7rem 0.2rem; font-size: 0.8rem; font-weight: 600;
+  border-bottom: 1px solid color-mix(in srgb, var(--echo-glow, #2bff3e) 28%, transparent);
+}
+.hud-rows li svg { color: var(--echo-glow, #2bff3e); flex-shrink: 0; }
+.hud-rows li span { flex: 1; min-width: 0; }
+.hud-rows li em { font-style: normal; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; }
+.hud-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: 1rem 0.75rem; max-width: 34rem; }
+.hud-file { display: grid; justify-items: center; gap: 0.4rem; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; min-width: 0; }
+.hud-file em { font-style: normal; max-width: 100%; }
+.hud-file-tile {
+  width: 3.4rem; height: 3.4rem; display: grid; place-items: center; border-radius: 14px; color: #fff;
+  background: linear-gradient(145deg, #4ade5a, #138a2a);
+  border: 2px solid var(--echo-glow, #2bff3e);
+  transform: skewX(-8deg);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--echo-glow, #2bff3e) 35%, transparent);
+}
+.hud-file-tile svg { transform: skewX(8deg); }
+.hud-stats { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.hud-stat {
+  min-width: 7rem; padding: 0.8rem 1rem; border-radius: 12px; display: grid;
+  border: 1px solid color-mix(in srgb, var(--echo-glow, #2bff3e) 35%, transparent);
+  background: rgba(0, 0, 0, 0.25);
+}
+.hud-stat strong { font-family: 'Unbounded', sans-serif; font-size: 1.8rem; color: var(--echo-glow, #2bff3e); }
+.hud-stat span { font-size: 0.65rem; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.7; }
+.hud-ring {
+  --ring: 100%;
+  width: 9rem; height: 9rem; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--echo-glow, #2bff3e) var(--ring), color-mix(in srgb, var(--echo-glow, #2bff3e) 16%, transparent) 0);
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 59%); mask: radial-gradient(circle, transparent 58%, #000 59%);
+}
+.hud-ring-wrap { position: relative; width: 9rem; height: 9rem; }
+.hud-ring-wrap .hud-ring { position: absolute; inset: 0; }
+.hud-ring-label { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.hud-ring-label strong { font-family: 'Unbounded', sans-serif; font-size: 2rem; color: var(--echo-glow, #2bff3e); line-height: 1; }
+.hud-ring-label span { font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.7; margin-top: 0.3rem; }

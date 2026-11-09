@@ -56,7 +56,52 @@ const STORY_STEPS = [
   { id: 'live', icon: Radio, kicker: 'Always current', title: 'Live and together', body: 'The portal updates by itself. See who is online right now and watch new posts, uploads and quiz activity appear without refreshing the page.', cta: 'online' }
 ];
 
-function ScrollStory({ C, reducedMotion, onNavigate, onOpenOnline }) {
+function StoryVisual({ id, C, data }) {
+  const rows = (items, render) => items.length
+    ? <ul className="hud-rows">{items.map(render)}</ul>
+    : <p className="text-xs" style={{ color: C.textDim }}>Nothing here yet. It will appear as soon as it is added.</p>;
+  if (id === 'about') {
+    return (
+      <div className="hud-stats">
+        {[['Announcements', data.announcements.length], ['Folders', data.folders.length], ['Quizzes', data.quizzes.length]].map(([l, v]) => (
+          <div key={l} className="hud-stat"><strong>{v}</strong><span>{l}</span></div>
+        ))}
+      </div>
+    );
+  }
+  if (id === 'announcements') {
+    return rows(data.announcements.slice(0, 3), a => (
+      <li key={a.id}><ArrowRight className="w-3.5 h-3.5" aria-hidden="true" /><span className="truncate">{a.title}</span><em>{a.date}</em></li>
+    ));
+  }
+  if (id === 'projectHistory') {
+    return data.folders.length ? (
+      <div className="hud-files">
+        {data.folders.slice(0, 8).map(f => (
+          <span key={f.id} className="hud-file"><span className="hud-file-tile"><FolderOpen className="w-5 h-5" aria-hidden="true" /></span><em className="truncate">{f.title}</em></span>
+        ))}
+      </div>
+    ) : rows([], () => null);
+  }
+  if (id === 'showcase') {
+    return rows(data.achievers.slice(0, 4), a => (
+      <li key={a.id}><Award className="w-3.5 h-3.5" aria-hidden="true" /><span className="truncate">{a.name}</span><em>{a.semester}</em></li>
+    ));
+  }
+  if (id === 'quizzes') {
+    return rows(data.quizzes.slice(0, 4), q => (
+      <li key={q.id}><ArrowRight className="w-3.5 h-3.5" aria-hidden="true" /><span className="truncate">{q.title}</span><em>{(q.items || []).length} items</em></li>
+    ));
+  }
+  return (
+    <div className="hud-ring-wrap">
+      <div className="hud-ring" style={{ '--ring': data.online > 0 ? '100%' : '0%' }} aria-hidden="true" />
+      <div className="hud-ring-label"><strong>{data.online}</strong><span>online now</span></div>
+    </div>
+  );
+}
+
+function ScrollStory({ C, reducedMotion, onNavigate, onOpenOnline, data }) {
   const [active, setActive] = useState(0);
   const [progress, setProgress] = useState(0);
   const wrapRef = useRef(null);
@@ -118,13 +163,14 @@ function ScrollStory({ C, reducedMotion, onNavigate, onOpenOnline }) {
             key={s.id}
             ref={el => { cardRefs.current[i] = el; }}
             data-index={i}
-            className={`echo-story-card ${active === i ? 'is-active' : ''}`}
+            className={`echo-story-card hud ${active === i ? 'is-active' : ''}`}
             style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}
           >
-            <span className="echo-story-icon" aria-hidden="true"><s.icon className="w-7 h-7" /></span>
-            <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: C.glow }}>{s.kicker}</p>
-            <h3 className="font-display text-2xl font-extrabold mb-3">{s.title}</h3>
-            <p className="text-sm leading-relaxed max-w-xl" style={{ color: C.textDim }}>{s.body}</p>
+            <span className="hud-tag"><s.icon className="w-4 h-4" aria-hidden="true" />{s.kicker}</span>
+            <h3 className="echo-story-title">{s.title}</h3>
+            <span className="hud-line" aria-hidden="true" />
+            <p className="text-sm leading-relaxed max-w-xl mb-5" style={{ color: C.textDim }}>{s.body}</p>
+            <StoryVisual id={s.id} C={C} data={data} />
             {s.cta && (
               <button
                 type="button"
@@ -144,7 +190,7 @@ function ScrollStory({ C, reducedMotion, onNavigate, onOpenOnline }) {
 
 function Panel({ C, title, icon: Icon, action, children }) {
   return (
-    <section className="rounded-2xl p-5 glass-surface" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
+    <section className="rounded-2xl p-5 glass-surface hud" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="flex items-center gap-2 text-sm font-extrabold" style={{ fontFamily: DISPLAY_FONT }}>
           {Icon && <Icon className="w-4 h-4" style={{ color: C.glow }} aria-hidden="true" />}
@@ -294,7 +340,7 @@ export default function HomeView({
         </div>
       </div>
 
-      <ScrollStory C={C} reducedMotion={reducedMotion} onNavigate={onNavigate} onOpenOnline={onOpenOnline} />
+      <ScrollStory C={C} reducedMotion={reducedMotion} onNavigate={onNavigate} onOpenOnline={onOpenOnline} data={{ announcements, folders, achievers, quizzes, online: (onlineUsers || []).length }} />
 
       {/* COMMUNITY STRIP */}
       <div className="rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-2 text-sm glass-surface" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
