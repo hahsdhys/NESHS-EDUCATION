@@ -401,6 +401,9 @@ export default function App() {
   const [settingsSearch, setSettingsSearch] = useState('');
   const [activeSectionView, setActiveSectionView] = useState('');
   const reducedMotion = settings.reducedMotion;
+  useEffect(() => {
+    document.documentElement.dataset.reducedMotion = reducedMotion ? 'true' : 'false';
+  }, [reducedMotion]);
   const motionTransition = reducedMotion ? '' : 'transition-all duration-300';
   const motionBounce = reducedMotion ? '' : 'animate-bounce';
   const hoverScale = reducedMotion ? '' : 'hover:scale-105';
@@ -2042,7 +2045,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className={`p-4 sm:p-6 ${activeTab === 'home' ? 'max-w-6xl' : 'max-w-5xl'} w-full mx-auto pb-24`}>
+        <main key={activeTab} className={`echo-page-enter p-4 sm:p-6 ${activeTab === 'home' ? 'max-w-6xl' : 'max-w-5xl'} w-full mx-auto pb-24`}>
           {/* LIVE HOME */}
           {activeTab === 'home' && (
             <HomeView
