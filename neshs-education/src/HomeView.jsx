@@ -293,7 +293,6 @@ export default function HomeView({
     <div className="space-y-5">
       {/* HERO */}
       <div className="neshs-home-hero" style={heroVars}>
-        <img src="/school.jpg" alt="" aria-hidden="true" className="neshs-home-hero-photo" loading="eager" />
         <div className="neshs-home-hero-content">
           <div className="flex flex-wrap items-center gap-2 mb-5">
             <span
