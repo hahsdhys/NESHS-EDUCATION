@@ -684,20 +684,19 @@ html:not([data-glass-mode='true']) .echo-shell header {
     inset -7px -9px 16px var(--clay-in-dark);
 }
 html:not([data-glass-mode='true']) .echo-shell header {
-  margin: 12px 16px 0;
-  border-radius: 22px;
+  border-radius: 0 0 24px 24px;
 }
 html:not([data-glass-mode='true']) .echo-shell aside {
-  border-radius: 0 28px 28px 0;
+  border-radius: 0;
 }
 @media (min-width: 768px) {
   html:not([data-glass-mode='true']) .echo-shell aside {
     position: sticky;
-    top: 14px;
+    top: 0;
     align-self: flex-start;
-    height: calc(100vh - 28px);
-    margin: 14px 0 14px 14px;
-    border-radius: 28px;
+    height: 100vh;
+    margin: 0;
+    border-radius: 0 28px 28px 0;
     overflow-y: auto;
   }
 }
@@ -710,4 +709,55 @@ html:not([data-glass-mode='true']) .echo-shell aside button.active-nav-item {
     4px 5px 12px var(--clay-dark),
     -2px -2px 7px var(--clay-light),
     inset -3px -4px 7px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* ===== Scrolling "how it works" hero ===== */
+.echo-story {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 1.25rem;
+}
+.echo-story-rail { display: none; }
+.echo-story-steps { display: grid; gap: 1.25rem; }
+.echo-story-card {
+  position: relative;
+  border-radius: 28px;
+  padding: 1.75rem;
+  min-height: 46vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  opacity: 0.55;
+  transform: translateY(10px) scale(0.985);
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+.echo-story-card.is-active { opacity: 1; transform: none; }
+.echo-story-icon {
+  width: 3.5rem; height: 3.5rem; border-radius: 20px;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 1.1rem;
+  color: var(--story-accent);
+  background: color-mix(in srgb, var(--story-accent) 14%, transparent);
+  box-shadow: 4px 5px 12px var(--clay-dark), inset -3px -3px 7px var(--clay-in-dark);
+}
+@media (min-width: 1024px) {
+  .echo-story { grid-template-columns: 17rem 1fr; gap: 2.5rem; align-items: start; }
+  .echo-story-rail { display: block; position: sticky; top: 6.5rem; }
+  .echo-story-card { min-height: 62vh; padding: 2.5rem; }
+}
+.echo-story-track {
+  position: absolute; left: 0; width: 3px; height: 14.5rem; margin-top: 0.25rem;
+  background: color-mix(in srgb, var(--story-accent) 18%, transparent); border-radius: 3px;
+}
+.echo-story-track span { display: block; width: 100%; background: var(--story-accent); border-radius: 3px; transition: height 120ms linear; }
+.echo-story-nav { list-style: none; margin: 0; padding: 0 0 0 1.1rem; display: grid; gap: 0.35rem; }
+.echo-story-nav button {
+  width: 100%; display: flex; gap: 0.7rem; align-items: center; text-align: left;
+  padding: 0.55rem 0.75rem; border-radius: 14px; font-size: 0.78rem; font-weight: 600;
+  background: transparent; opacity: 0.6; border: 0;
+}
+.echo-story-nav button.is-active { opacity: 1; background: color-mix(in srgb, var(--story-accent) 14%, transparent); }
+.echo-story-num { font-size: 0.65rem; font-weight: 800; color: var(--story-glow); }
+@media (prefers-reduced-motion: reduce) {
+  .echo-story-card { transition: none; transform: none; opacity: 1; }
 }

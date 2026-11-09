@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Megaphone, BookOpen, Award, FileSpreadsheet, User, Users, Activity,
-  Clock, ArrowRight, FolderOpen, Image as ImageIcon, Play
+  Clock, ArrowRight, FolderOpen, Image as ImageIcon, Play, Radio, Sparkles
 } from 'lucide-react';
 import { cleanMediaUrl } from './utils/cleanMediaUrl';
 
@@ -45,6 +45,102 @@ const QUICK_LINKS = [
   { id: 'quizzes', icon: FileSpreadsheet, label: 'Quizzes & Grades' },
   { id: 'author', icon: User, label: 'Author' }
 ];
+
+
+const STORY_STEPS = [
+  { id: 'about', icon: Sparkles, kicker: 'What is this?', title: 'One home for Senior Uno', body: 'The NESHS Portal brings everything Nasugbu East Senior High students and teachers need into a single place: news, project files, recognition and quizzes. Sign in once and everything below is a tap away.', cta: null },
+  { id: 'announcements', icon: Megaphone, kicker: 'Stay informed', title: 'Announcements', body: 'Read the latest school news with photos and details. New posts show up on your screen the moment they are published, so you never miss a reminder or an event.', cta: { label: 'Open announcements', to: 'announcements' } },
+  { id: 'projectHistory', icon: BookOpen, kicker: 'Keep the work', title: 'Project History', body: 'Browse folders of class projects and files by section. Open, preview and download work from past batches, and teachers can keep every folder organised.', cta: { label: 'Open project history', to: 'projectHistory' } },
+  { id: 'showcase', icon: Award, kicker: 'Celebrate wins', title: 'Best Students', body: 'See who is shining each semester, with their achievements listed next to their names. A small spotlight for the people who put in the work.', cta: { label: 'See the best students', to: 'showcase' } },
+  { id: 'quizzes', icon: FileSpreadsheet, kicker: 'Learn and check', title: 'Quizzes & Grades', body: 'Take teacher-made quizzes with a password, then see your results and records. Teachers can review every attempt in one list.', cta: { label: 'Go to quizzes', to: 'quizzes' } },
+  { id: 'live', icon: Radio, kicker: 'Always current', title: 'Live and together', body: 'The portal updates by itself. See who is online right now and watch new posts, uploads and quiz activity appear without refreshing the page.', cta: 'online' }
+];
+
+function ScrollStory({ C, reducedMotion, onNavigate, onOpenOnline }) {
+  const [active, setActive] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const wrapRef = useRef(null);
+  const cardRefs = useRef([]);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const i = Number(e.target.dataset.index);
+          if (!Number.isNaN(i)) setActive(i);
+        }
+      });
+    }, { rootMargin: '-40% 0px -45% 0px', threshold: 0 });
+    cardRefs.current.forEach(el => el && io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const el = wrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const total = r.height - window.innerHeight * 0.5;
+      setProgress(total > 0 ? Math.min(1, Math.max(0, (window.innerHeight * 0.5 - r.top) / total)) : 0);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    window.addEventListener('resize', onScroll);
+    return () => { window.removeEventListener('scroll', onScroll, true); window.removeEventListener('resize', onScroll); };
+  }, []);
+
+  const jump = i => {
+    const el = cardRefs.current[i];
+    if (el) el.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+  };
+
+  return (
+    <section className="echo-story" ref={wrapRef} aria-labelledby="home-story" style={{ '--story-accent': C.accent, '--story-glow': C.glow }}>
+      <div className="echo-story-rail">
+        <h2 id="home-story" className="font-display text-xl font-extrabold mb-1">How the portal works</h2>
+        <p className="text-xs mb-5" style={{ color: C.textDim }}>Scroll to take the tour.</p>
+        <div className="echo-story-track" aria-hidden="true"><span style={{ height: `${Math.round(progress * 100)}%` }} /></div>
+        <ol className="echo-story-nav">
+          {STORY_STEPS.map((s, i) => (
+            <li key={s.id}>
+              <button type="button" onClick={() => jump(i)} aria-current={active === i ? 'step' : undefined} className={active === i ? 'is-active' : ''}>
+                <span className="echo-story-num">{String(i + 1).padStart(2, '0')}</span>
+                {s.title}
+              </button>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div className="echo-story-steps">
+        {STORY_STEPS.map((s, i) => (
+          <article
+            key={s.id}
+            ref={el => { cardRefs.current[i] = el; }}
+            data-index={i}
+            className={`echo-story-card ${active === i ? 'is-active' : ''}`}
+            style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}
+          >
+            <span className="echo-story-icon" aria-hidden="true"><s.icon className="w-7 h-7" /></span>
+            <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: C.glow }}>{s.kicker}</p>
+            <h3 className="font-display text-2xl font-extrabold mb-3">{s.title}</h3>
+            <p className="text-sm leading-relaxed max-w-xl" style={{ color: C.textDim }}>{s.body}</p>
+            {s.cta && (
+              <button
+                type="button"
+                onClick={() => (s.cta === 'online' ? onOpenOnline() : onNavigate(s.cta.to))}
+                className="mt-5 self-start inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold"
+                style={{ backgroundColor: C.accent, color: C.onPrimary }}
+              >
+                {s.cta === 'online' ? 'See who is online' : s.cta.label} <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function Panel({ C, title, icon: Icon, action, children }) {
   return (
@@ -197,6 +293,8 @@ export default function HomeView({
           </div>
         </div>
       </div>
+
+      <ScrollStory C={C} reducedMotion={reducedMotion} onNavigate={onNavigate} onOpenOnline={onOpenOnline} />
 
       {/* COMMUNITY STRIP */}
       <div className="rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-2 text-sm glass-surface" style={{ backgroundColor: C.panel, border: `1px solid ${C.border}` }}>
