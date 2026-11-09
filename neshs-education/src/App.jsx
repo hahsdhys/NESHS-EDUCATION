@@ -1938,7 +1938,7 @@ export default function App() {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 px-6 py-4" style={{ backgroundColor: withAlpha(C.panel, 0.9), borderBottom: `1px solid ${C.border}`, backdropFilter: 'blur(8px)' }}>
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4" style={{ backgroundColor: withAlpha(C.panel, 0.9), borderBottom: `1px solid ${C.border}`, backdropFilter: 'blur(8px)' }}>
           <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => setMobileNavOpen(!mobileNavOpen)} className="md:hidden" style={{ color: C.textDim }}><Menu className="w-5 h-5" /></button>
             {/* Reopen button — only shown once the sidebar has been closed on desktop. */}
@@ -1954,7 +1954,7 @@ export default function App() {
                   <span className="absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: C.accent }} />
                   <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: C.accent }} />
                 </span>
-                Online <span style={{ color: C.text }}>{visibleOnlineUsers.length}</span>
+                <span className="hidden min-[420px]:inline">Online</span> <span style={{ color: C.text }}>{visibleOnlineUsers.length}</span>
               </button>
             </div>
             {canEditEverything && (
@@ -1990,7 +1990,7 @@ export default function App() {
             )}
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <div className="relative">
               <button onClick={() => { setNotifOpen(!notifOpen); setNotifUnread(0); }} className="p-2 rounded-lg relative" style={{ backgroundColor: C.panelAlt, border: `1px solid ${C.border}`, color: C.textDim }}>
                 <Bell className="w-4 h-4" />
@@ -2015,8 +2015,8 @@ export default function App() {
 
             {/* Top-right profile widget: name, section (students only), and role — hidden
                 behind the Profile Visibility privacy toggle when the user opts out. */}
-            <div className="hidden sm:flex items-center gap-2.5 rounded-full py-1 pl-4 pr-1" style={{ backgroundColor: C.accentDim, border: `1px solid ${C.border}` }}>
-              <div className="text-right leading-tight">
+            <div className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-1 lg:pl-4" style={{ backgroundColor: C.accentDim, border: `1px solid ${C.border}` }}>
+              <div className="hidden lg:block text-right leading-tight">
                 <p className="text-xs font-bold flex items-center justify-end gap-1.5">
                   {currentUser.name}
                   {!settings.profileVisibility && <EyeOff className="w-3 h-3" style={{ color: C.textDim }} title="Your active status is hidden from other students" />}
@@ -2042,7 +2042,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className={`p-6 ${activeTab === 'home' ? 'max-w-6xl' : 'max-w-5xl'} w-full mx-auto pb-24`}>
+        <main className={`p-4 sm:p-6 ${activeTab === 'home' ? 'max-w-6xl' : 'max-w-5xl'} w-full mx-auto pb-24`}>
           {/* LIVE HOME */}
           {activeTab === 'home' && (
             <HomeView

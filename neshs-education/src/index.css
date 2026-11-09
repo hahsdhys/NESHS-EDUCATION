@@ -714,6 +714,7 @@ html:not([data-glass-mode='true']) .echo-shell aside button.active-nav-item {
 /* ===== Scrolling "how it works" hero ===== */
 .echo-story {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
   margin-top: 1.25rem;
 }
@@ -722,8 +723,9 @@ html:not([data-glass-mode='true']) .echo-shell aside button.active-nav-item {
 .echo-story-card {
   position: relative;
   border-radius: 28px;
-  padding: 1.75rem;
-  min-height: 46vh;
+  padding: 1.25rem;
+  min-height: 40vh;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -741,7 +743,7 @@ html:not([data-glass-mode='true']) .echo-shell aside button.active-nav-item {
   box-shadow: 4px 5px 12px var(--clay-dark), inset -3px -3px 7px var(--clay-in-dark);
 }
 @media (min-width: 1024px) {
-  .echo-story { grid-template-columns: 17rem 1fr; gap: 2.5rem; align-items: start; }
+  .echo-story { grid-template-columns: 17rem minmax(0, 1fr); gap: 2.5rem; align-items: start; }
   .echo-story-rail { display: block; position: sticky; top: 6.5rem; }
   .echo-story-card { min-height: 62vh; padding: 2.5rem; }
 }
@@ -786,7 +788,7 @@ html:not([data-glass-mode='true']) .echo-shell .hud {
 }
 .echo-story-title {
   font-family: 'Unbounded', sans-serif; font-weight: 800; text-transform: uppercase;
-  font-size: clamp(1.6rem, 4vw, 2.8rem); line-height: 1.05; letter-spacing: -0.01em; margin-bottom: 0.75rem;
+  font-size: clamp(1.15rem, 5.6vw, 2.8rem); overflow-wrap: anywhere; line-height: 1.05; letter-spacing: -0.01em; margin-bottom: 0.75rem;
 }
 .hud-line {
   display: block; height: 2px; width: 100%; max-width: 28rem; margin-bottom: 1rem;
