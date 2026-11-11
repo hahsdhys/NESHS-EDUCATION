@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { cleanMediaUrl } from './utils/cleanMediaUrl';
 import { COLOR_THEMES, getColorTheme, useTheme } from './ThemeContext.jsx';
+import LoadingScreen from './LoadingScreen.jsx';
 import HomeView from './HomeView.jsx';
 import {
   User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
@@ -1627,12 +1628,7 @@ export default function App() {
         </div>
       );
     }
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 font-sans" style={{ backgroundColor: C.bg, color: C.text }}>
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: C.accent }} />
-          <p className="text-xs" style={{ color: C.textDim }}>Loading NESHS Portal</p>
-        </div>
-    );
+    return <LoadingScreen />;
   }
 
   // ================================================================
