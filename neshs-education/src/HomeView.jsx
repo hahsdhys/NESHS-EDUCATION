@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTheme } from './ThemeContext.jsx';
 import {
   Megaphone, BookOpen, Award, FileSpreadsheet, User, Users, Activity,
   Clock, ArrowRight, FolderOpen, Image as ImageIcon, Play, Radio, Sparkles
@@ -220,6 +221,57 @@ function Empty({ C, children }) {
   return <p className="text-xs py-6 text-center" style={{ color: C.textDim }}>{children}</p>;
 }
 
+function EditorialHero({ C, now, timeText, dateText, firstName, schoolName, isLive, isConfigured, reducedMotion, onNavigate, counts }) {
+  const metrics = [
+    [counts.announcements, 'Announcements'],
+    [counts.folders, 'Project folders'],
+    [counts.quizzes, 'Quizzes'],
+    [counts.online, 'Online now']
+  ];
+  return (
+    <section className="hv-hero" aria-labelledby="hv-title" style={{ '--hv-accent': C.accent, '--hv-line': C.border, '--hv-muted': C.textDim, '--hv-card': C.panel }}>
+      <div className="hv-top">
+        <div>
+          <span className="hv-eyebrow">{schoolName} · Senior Uno</span>
+          <h1 id="hv-title" className="hv-h1">The one place for <span>everything</span> that happens here.</h1>
+        </div>
+        <div className="hv-aside">
+          <p>Announcements, project files, recognition and quizzes, together in one portal that updates live for students and teachers.</p>
+          <div className="hv-actions">
+            <button type="button" onClick={() => onNavigate('announcements')} className="hv-btn hv-btn-primary">
+              Latest news <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </button>
+            <button type="button" onClick={() => onNavigate('quizzes')} className="hv-btn hv-btn-ghost">Take a quiz</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="hv-metrics">
+        {metrics.map(([n, l]) => (
+          <div key={l} className="hv-metric"><div className="hv-num">{n}</div><div className="hv-lbl">{l}</div></div>
+        ))}
+      </div>
+
+      <div className="hv-band" role="status">
+        <div>
+          <p className="hv-band-hello">{greetingFor(now)}{firstName ? `, ${firstName}` : ''}.</p>
+          <p className="hv-band-sub">Pick up where you left off, or explore the portal below.</p>
+        </div>
+        <div className="hv-band-meta">
+          <span className="hv-chip">
+            <span className="relative flex h-2 w-2" aria-hidden="true">
+              {isLive && !reducedMotion && <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ backgroundColor: '#3fbf94' }} />}
+              <span className="relative inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: isLive ? '#3fbf94' : '#8b958f' }} />
+            </span>
+            {isLive ? 'Live' : isConfigured ? 'Reconnecting…' : 'This device only'}
+          </span>
+          <span className="hv-chip"><Clock className="w-3.5 h-3.5" aria-hidden="true" /><time dateTime={now.toISOString()}>{timeText} · {dateText}</time></span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function HomeView({
   palette: C,
   user,
@@ -238,6 +290,9 @@ export default function HomeView({
   onNavigate,
   onOpenOnline
 }) {
+  const { colorTheme } = useTheme();
+  const editorial = colorTheme === 'emerald-paper';
+
   // Light clock tick so the greeting and time stay correct while the tab is open.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -292,6 +347,9 @@ export default function HomeView({
   return (
     <div className="space-y-5">
       {/* HERO */}
+      {editorial ? (
+        <EditorialHero C={C} now={now} timeText={timeText} dateText={dateText} firstName={firstName} schoolName={schoolName} isLive={isLive} isConfigured={isConfigured} reducedMotion={reducedMotion} onNavigate={onNavigate} counts={{ announcements: announcements.length, folders: projectFolders.length, quizzes: quizzes.length, online: (onlineUsers || []).length }} />
+      ) : (
       <div className="neshs-home-hero" style={heroVars}>
         <div className="neshs-home-hero-content">
           <div className="flex flex-wrap items-center gap-2 mb-5">
@@ -339,6 +397,7 @@ export default function HomeView({
           </div>
         </div>
       </div>
+      )}
 
       <ScrollStory C={C} reducedMotion={reducedMotion} onNavigate={onNavigate} onOpenOnline={onOpenOnline} data={{ announcements, folders, achievers, quizzes, online: (onlineUsers || []).length }} />
 

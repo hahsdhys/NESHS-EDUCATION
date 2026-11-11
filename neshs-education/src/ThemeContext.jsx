@@ -51,6 +51,12 @@ const glassTokens = palette => withTokens({
 
 export const COLOR_THEMES = [
   {
+    id: 'emerald-paper', label: 'Halvorn Emerald', vivid: '#10996E', nearWhite: '#F2F4F2', nearBlack: '#0F1513', swatch: '#0B6E4F',
+    light: withTokens({ bg: '#F2F4F2', panel: '#FFFFFF', panelAlt: '#E7EBE8', border: '#DADFDC', accent: '#0B6E4F', accentDim: 'rgba(11,110,79,0.10)', highlight: '#08543C', text: '#0F1513', textDim: '#58635D', onPrimary: '#FFFFFF', glow: '#10996E', heroFrom: '#0B6E4F', heroTo: '#10996E', heroInk: '#FFFFFF', heroEcho: '#E5F1EB', heroWhite: '#FFFFFF' }),
+    dark: withTokens({ bg: '#0F1513', panel: '#17201C', panelAlt: '#23302A', border: '#2C3B34', accent: '#10996E', accentDim: 'rgba(16,153,110,0.16)', highlight: '#3FBF94', text: '#E8EFEB', textDim: '#8B958F', onPrimary: '#0F1513', glow: '#10996E', heroFrom: '#08543C', heroTo: '#0B6E4F', heroInk: '#FFFFFF', heroEcho: '#E5F1EB', heroWhite: '#FFFFFF' }),
+    glass: glassTokens({ bg: 'transparent', accent: '#10996E', primaryHover: '#3FBF94', text: '#EEF5F1', textDim: '#A9BDB3', onPrimary: '#0F1513', gold: '#10996E', glassGradient: 'radial-gradient(circle at 20% 0%, #17201C 0%, #0F1513 55%, #070B09 100%)', glassOrbOne: '#10996E', glassOrbTwo: '#0B6E4F', glassSurface: 'rgba(16,153,110,0.07)', glassSurfaceRgb: '16,153,110', glassBorder: 'rgba(16,153,110,0.18)', glassBorderRgb: '16,153,110', glassActive: 'rgba(16,153,110,0.20)', glassGlow: 'rgba(16,153,110,0.25)', glassBackdrop: 'rgba(7,11,9,0.82)', glassMediaOverlay: 'rgba(7,11,9,0.35)' })
+  },
+  {
     id: 'cyan-pulse', label: 'Cyan Pulse', vivid: '#50E8F4', nearWhite: '#C7F8FE', nearBlack: '#001619', swatch: '#50E8F4',
     light: withTokens({ bg: '#F3FDFE', panel: '#FFFFFF', panelAlt: '#EAFBFC', border: '#D3F3F6', accent: '#14B8C4', accentDim: 'rgba(20,184,196,0.12)', highlight: '#0F97A1', text: '#06272B', textDim: '#4E7A80', onPrimary: '#06272B' }),
     dark: withTokens({ bg: '#001619', panel: '#04262B', panelAlt: '#07343A', border: '#0D3A40', accent: '#50E8F4', accentDim: 'rgba(80,232,244,0.16)', highlight: '#7CEFF8', text: '#C7F8FE', textDim: '#7FB4BB', onPrimary: '#001619' }),

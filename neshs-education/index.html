@@ -6,13 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <title>NESHS Portal – ECHOES</title>
     <script>
       (() => {
         try {
-          const selected = localStorage.getItem('neshs_user_theme') || 'dark';
-          const colorTheme = localStorage.getItem('neshs_color_theme') || 'lime-volt';
+          const selected = localStorage.getItem('neshs_user_theme') || 'light';
+          const colorTheme = localStorage.getItem('neshs_color_theme') || 'emerald-paper';
           const resolved = selected === 'system'
             ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : selected;
