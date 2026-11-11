@@ -836,13 +836,40 @@ html:not([data-glass-mode='true']) .echo-shell .hud {
 /* ===== Tap animations ===== */
 .tap-ripple {
   position: fixed; z-index: 9999; pointer-events: none;
-  border-radius: 50%; opacity: 0.4;
-  transform: translate(-50%, -50%) scale(0.05);
-  animation: tap-ripple 620ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  transform: translate(-50%, -50%);
 }
-@keyframes tap-ripple {
-  60% { opacity: 0.22; }
-  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+.tap-ripple i { position: absolute; inset: 0; border-radius: 50%; display: block; opacity: 0; }
+/* glassy ring: clear centre, bright refracted rim, soft tinted glow */
+.tap-ring {
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  background: radial-gradient(circle, transparent 52%, rgba(255, 255, 255, 0.16) 70%, rgba(255, 255, 255, 0.04) 100%);
+  -webkit-backdrop-filter: blur(1.5px) saturate(1.6) brightness(1.12);
+  backdrop-filter: blur(1.5px) saturate(1.6) brightness(1.12);
+  box-shadow:
+    inset 0 0 14px rgba(255, 255, 255, 0.45),
+    inset 3px 4px 8px rgba(255, 255, 255, 0.35),
+    0 0 18px color-mix(in srgb, var(--wave, #c4f542) 55%, transparent);
+  animation: tap-wave 1100ms cubic-bezier(0.2, 0.65, 0.25, 1) both;
+}
+/* droplet that lands at the touch point */
+.tap-drop {
+  inset: 38% !important;
+  background: radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.35) 38%, color-mix(in srgb, var(--wave, #c4f542) 40%, transparent) 100%);
+  -webkit-backdrop-filter: blur(2px) saturate(1.8);
+  backdrop-filter: blur(2px) saturate(1.8);
+  box-shadow: inset 0 -3px 6px rgba(0, 0, 0, 0.12), 0 2px 10px color-mix(in srgb, var(--wave, #c4f542) 50%, transparent);
+  animation: tap-drop 520ms ease-out both;
+}
+@keyframes tap-wave {
+  0% { transform: scale(0.08); opacity: 0.95; }
+  35% { opacity: 0.8; }
+  70% { transform: scale(0.9, 0.94); }
+  100% { transform: scale(1); opacity: 0; }
+}
+@keyframes tap-drop {
+  0% { transform: scale(0.4); opacity: 0; }
+  25% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.7); opacity: 0; }
 }
 @keyframes tap-pop {
   0% { transform: scale(1); }
@@ -860,7 +887,7 @@ html:not([data-reduced-motion='true']) .echo-page-enter {
   animation: echo-page-in 380ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .tap-ripple, .echo-page-enter, .echo-shell :is(button, [role='button'], a[href]):active { animation: none !important; }
+  .tap-ripple, .tap-ripple i, .echo-page-enter, .echo-shell :is(button, [role='button'], a[href]):active { animation: none !important; }
 }
 
 /* ===== Halvorn Emerald: editorial "annual report" look ===== */

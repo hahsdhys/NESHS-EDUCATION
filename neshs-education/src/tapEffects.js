@@ -1,4 +1,4 @@
-// Tap feedback: a soft ripple that expands from the exact point you touch or
+// Tap feedback: a glass water wave that expands from the exact point you touch or
 // click on any button, link or control. It lives in its own overlay element
 // (not inside the button), so it never gets clipped and never changes layout.
 // It stays off when Reduced Motion is on, either in the portal's Settings
@@ -22,14 +22,20 @@ export function installTapEffects() {
 
     const color = getComputedStyle(el).getPropertyValue('--echo-glow').trim() || '#c4f542';
     const size = Math.min(Math.max(el.getBoundingClientRect().width, 56), 220);
+    // A glass water wave: three clear, refracting rings that spread out one
+    // after another from the touch point, plus a small droplet at the centre.
     const dot = document.createElement('span');
     dot.className = 'tap-ripple';
     dot.setAttribute('aria-hidden', 'true');
-    dot.style.cssText = `left:${e.clientX}px;top:${e.clientY}px;width:${size}px;height:${size}px;background:${color}`;
+    dot.style.cssText = `left:${e.clientX}px;top:${e.clientY}px;width:${size * 1.5}px;height:${size * 1.5}px;--wave:${color}`;
+    for (let i = 0; i < 4; i += 1) {
+      const ring = document.createElement('i');
+      ring.className = i === 3 ? 'tap-drop' : 'tap-ring';
+      ring.style.animationDelay = `${i * 110}ms`;
+      dot.appendChild(ring);
+    }
     document.body.appendChild(dot);
-    const remove = () => dot.remove();
-    dot.addEventListener('animationend', remove, { once: true });
-    setTimeout(remove, 900);
+    setTimeout(() => dot.remove(), 1500);
   };
 
   document.addEventListener('pointerdown', onPointerDown, { passive: true });
