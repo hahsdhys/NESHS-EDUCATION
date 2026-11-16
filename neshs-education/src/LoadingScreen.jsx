@@ -10,7 +10,7 @@ export default function LoadingScreen({ label = 'RECONNECTING' }) {
   }, []);
 
   return (
-    <div className="echoes-loader" role="status" aria-live="polite" aria-label="Loading NESHS Portal">
+    <div className="echoes-loader" role="status" aria-live="polite" aria-label="Loading ECHOES NESHS">
       <div className="echoes-loader-card">
         <div className="echoes-loader-badge">
           <span className="echoes-loader-dot" aria-hidden="true"><i /><b /></span>

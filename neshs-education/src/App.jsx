@@ -1187,7 +1187,7 @@ export default function App() {
   // ------------------------------------------------------------
   const [authorName, setAuthorName] = useState('MARK NIEL PAITON');
   const [authorTitle, setAuthorTitle] = useState('Creator & Architect');
-  const [authorBio, setAuthorBio] = useState('Visionary developer behind the NESHS Portal, built to bridge academic administration and a clear digital experience for the whole school.');
+  const [authorBio, setAuthorBio] = useState('Visionary developer behind ECHOES NESHS, built to bridge academic administration and a clear digital experience for the whole school.');
   const [authorEditing, setAuthorEditing] = useState(false);
   const [authorPhotoUrl, setAuthorPhotoUrl] = useState(null);
   const uploadAuthorPhoto = () => triggerRealUpload({ type: 'authorPhoto' }, { accept: 'image/*', label: 'Allow access to your photos to update the author picture.' });
@@ -1646,8 +1646,8 @@ export default function App() {
         </button>
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
-            <div className="echo-seal w-16 h-16 mx-auto mb-3" aria-hidden="true" />
-            <h1 className="text-2xl font-extrabold tracking-tight font-display">NESHS Portal</h1>
+            <img src="/logo-256.webp" alt="ECHOES NESHS logo" width="64" height="64" className="w-16 h-16 mx-auto mb-3 rounded-[22%] shadow-lg" />
+            <h1 className="text-2xl font-extrabold tracking-tight font-display">ECHOES NESHS</h1>
             <p className="text-[11px] uppercase font-semibold tracking-wider" style={{ color: C.textDim }}>{SCHOOL_NAME}</p>
           </div>
 
@@ -1865,8 +1865,8 @@ export default function App() {
       <aside className={`fixed md:static inset-y-0 left-0 w-64 flex flex-col z-40 p-5 ${reducedMotion ? '' : 'transition-transform'} ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${sidebarCollapsed ? 'md:hidden' : ''}`} style={{ backgroundColor: C.panel, borderRight: `1px solid ${C.border}` }}>
         <div className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="echo-seal w-9 h-9 shrink-0" aria-hidden="true" />
-            <h1 className="font-extrabold text-sm truncate font-display">NESHS Portal</h1>
+            <img src="/logo-256.webp" alt="ECHOES NESHS logo" width="36" height="36" className="w-9 h-9 shrink-0 rounded-[22%]" />
+            <h1 className="font-extrabold text-sm truncate font-display">ECHOES NESHS</h1>
           </div>
           {/* Close button — collapses the sidebar on desktop; on mobile it hides the slide-in nav. */}
           <button

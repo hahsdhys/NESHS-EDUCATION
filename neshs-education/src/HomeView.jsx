@@ -49,7 +49,7 @@ const QUICK_LINKS = [
 
 
 const STORY_STEPS = [
-  { id: 'about', icon: Sparkles, kicker: 'What is this?', title: 'One home for Senior Uno', body: 'The NESHS Portal brings everything Nasugbu East Senior High students and teachers need into a single place: news, project files, recognition and quizzes. Sign in once and everything below is a tap away.', cta: null },
+  { id: 'about', icon: Sparkles, kicker: 'What is this?', title: 'One home for Senior Uno', body: 'ECHOES NESHS brings everything Nasugbu East Senior High students and teachers need into a single place: news, project files, recognition and quizzes. Sign in once and everything below is a tap away.', cta: null },
   { id: 'announcements', icon: Megaphone, kicker: 'Stay informed', title: 'Announcements', body: 'Read the latest school news with photos and details. New posts show up on your screen the moment they are published, so you never miss a reminder or an event.', cta: { label: 'Open announcements', to: 'announcements' } },
   { id: 'projectHistory', icon: BookOpen, kicker: 'Keep the work', title: 'Project History', body: 'Browse folders of class projects and files by section. Open, preview and download work from past batches, and teachers can keep every folder organised.', cta: { label: 'Open project history', to: 'projectHistory' } },
   { id: 'showcase', icon: Award, kicker: 'Celebrate wins', title: 'Best Students', body: 'See who is shining each semester, with their achievements listed next to their names. A small spotlight for the people who put in the work.', cta: { label: 'See the best students', to: 'showcase' } },
