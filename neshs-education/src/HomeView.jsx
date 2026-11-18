@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useTheme } from './ThemeContext.jsx';
 import {
   Megaphone, BookOpen, Award, FileSpreadsheet, User, Users, Activity,
   Clock, ArrowRight, FolderOpen, Image as ImageIcon, Play, Radio, Sparkles
@@ -142,7 +141,7 @@ function ScrollStory({ C, reducedMotion, onNavigate, onOpenOnline, data }) {
   };
 
   return (
-    <section className="echo-story" ref={wrapRef} aria-labelledby="home-story" style={{ '--story-accent': C.accent, '--story-glow': C.glow }}>
+    <section className="echo-story" ref={wrapRef} aria-labelledby="home-story" style={{ '--story-accent': C.accent, '--story-on': C.onPrimary, '--story-glow': C.glow }}>
       <div className="echo-story-rail">
         <h2 id="home-story" className="font-display text-xl font-extrabold mb-1">How the portal works</h2>
         <p className="text-xs mb-5" style={{ color: C.textDim }}>Scroll to take the tour.</p>
@@ -229,7 +228,7 @@ function EditorialHero({ C, now, timeText, dateText, firstName, schoolName, isLi
     [counts.online, 'Online now']
   ];
   return (
-    <section className="hv-hero" aria-labelledby="hv-title" style={{ '--hv-accent': C.accent, '--hv-line': C.border, '--hv-muted': C.textDim, '--hv-card': C.panel }}>
+    <section className="hv-hero" aria-labelledby="hv-title" style={{ '--hv-accent': C.accent, '--hv-on': C.onPrimary, '--hv-line': C.border, '--hv-muted': C.textDim, '--hv-card': C.panel }}>
       <div className="hv-top">
         <div>
           <span className="hv-eyebrow">{schoolName} · Senior Uno</span>
@@ -290,9 +289,6 @@ export default function HomeView({
   onNavigate,
   onOpenOnline
 }) {
-  const { colorTheme } = useTheme();
-  const editorial = colorTheme === 'emerald-paper';
-
   // Light clock tick so the greeting and time stay correct while the tab is open.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -329,14 +325,6 @@ export default function HomeView({
   const timeText = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const dateText = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 
-  const heroVars = {
-    '--hero-from': C.heroFrom,
-    '--hero-to': C.heroTo,
-    '--hero-ink': C.heroInk,
-    '--hero-echo': C.heroEcho,
-    '--hero-white': C.heroWhite
-  };
-
   const stats = [
     { key: 'online', label: 'Online now', value: onlineUsers.length, icon: Users, onClick: onOpenOnline, live: true },
     { key: 'ann', label: 'Announcements', value: announcements.length, icon: Megaphone, onClick: () => onNavigate('announcements') },
@@ -347,57 +335,7 @@ export default function HomeView({
   return (
     <div className="space-y-5">
       {/* HERO */}
-      {editorial ? (
-        <EditorialHero C={C} now={now} timeText={timeText} dateText={dateText} firstName={firstName} schoolName={schoolName} isLive={isLive} isConfigured={isConfigured} reducedMotion={reducedMotion} onNavigate={onNavigate} counts={{ announcements: announcements.length, folders: projectFolders.length, quizzes: quizzes.length, online: (onlineUsers || []).length }} />
-      ) : (
-      <div className="neshs-home-hero" style={heroVars}>
-        <div className="neshs-home-hero-content">
-          <div className="flex flex-wrap items-center gap-2 mb-5">
-            <span
-              className="inline-flex items-center gap-2 text-[11px] font-bold uppercase px-3 py-1.5 rounded-full"
-              style={{ backgroundColor: 'rgba(0,0,0,0.38)', color: '#fff' }}
-              role="status"
-            >
-              <span className="relative flex h-2 w-2" aria-hidden="true">
-                {isLive && !reducedMotion && (
-                  <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping" style={{ backgroundColor: C.glow }} />
-                )}
-                <span className="relative inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: isLive ? C.glow : '#cbd5c9' }} />
-              </span>
-              {isLive ? 'Live' : isConfigured ? 'Reconnecting…' : 'This device only'}
-            </span>
-            <span
-              className="inline-flex items-center gap-2 text-[11px] font-bold px-3 py-1.5 rounded-full"
-              style={{ backgroundColor: 'rgba(0,0,0,0.38)', color: '#fff' }}
-            >
-              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-              <time dateTime={now.toISOString()}>{timeText} · {dateText}</time>
-            </span>
-          </div>
-
-          <h1 className="neshs-home-title">NESHS</h1>
-          <p className="neshs-home-subtitle">{schoolName}</p>
-          <p className="text-sm font-semibold mb-3" style={{ color: 'var(--hero-ink)' }}>
-            {greetingFor(now)}{firstName ? `, ${firstName}` : ''}.
-          </p>
-          <div className="neshs-home-welcome">
-            <strong>WEL<span>COME</span></strong>
-            <span className="neshs-home-welcome-to">to</span>
-          </div>
-          <div className="neshs-home-echoes" aria-label="ECHOES">ECH<span>OES</span></div>
-          <span className="neshs-home-tag">For education purpose</span>
-
-          <div className="flex flex-wrap gap-3 mt-6">
-            <button type="button" onClick={() => onNavigate('announcements')} className="neshs-hero-btn neshs-hero-btn-solid">
-              <Megaphone className="w-4 h-4" aria-hidden="true" /> Latest news
-            </button>
-            <button type="button" onClick={() => onNavigate('quizzes')} className="neshs-hero-btn neshs-hero-btn-outline">
-              <FileSpreadsheet className="w-4 h-4" aria-hidden="true" /> Take a quiz
-            </button>
-          </div>
-        </div>
-      </div>
-      )}
+      <EditorialHero C={C} now={now} timeText={timeText} dateText={dateText} firstName={firstName} schoolName={schoolName} isLive={isLive} isConfigured={isConfigured} reducedMotion={reducedMotion} onNavigate={onNavigate} counts={{ announcements: announcements.length, folders: projectFolders.length, quizzes: quizzes.length, online: (onlineUsers || []).length }} />
 
       <ScrollStory C={C} reducedMotion={reducedMotion} onNavigate={onNavigate} onOpenOnline={onOpenOnline} data={{ announcements, folders, achievers, quizzes, online: (onlineUsers || []).length }} />
 
