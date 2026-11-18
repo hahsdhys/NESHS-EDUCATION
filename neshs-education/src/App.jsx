@@ -4,6 +4,8 @@ import { cleanMediaUrl } from './utils/cleanMediaUrl';
 import { COLOR_THEMES, getColorTheme, useTheme } from './ThemeContext.jsx';
 import LoadingScreen from './LoadingScreen.jsx';
 import HomeView from './HomeView.jsx';
+import InfoView from './InfoView.jsx';
+import { fetchWithTimeout, withRetry, createLimiter, trackPage, SITE_NAME } from './siteUtils.js';
 import {
   User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
   Megaphone, CheckCircle, Lock, Unlock, Menu, X,
@@ -11,7 +13,7 @@ import {
   Plus, Edit, Trash2, Image as ImageIcon, FileText, Upload, ChevronLeft,
   Play, ScanLine, KeyRound, Quote, GraduationCap,
   Settings, ExternalLink, Loader2, Sun, Moon, Sparkles, Eye, EyeOff, Globe,
-  Zap, FolderCog, ChevronDown, Info, Home as HomeIcon
+  Zap, FolderCog, ChevronDown, ChevronRight, HelpCircle, Info, Home as HomeIcon
 } from 'lucide-react';
 
 // Mutated in place so the shared UI atoms read the active provider palette.
@@ -63,7 +65,7 @@ const isGmailAddress = (email) => /^[^\s@]+@gmail\.com$/i.test((email || '').tri
 const SUPABASE_URL = 'https://hbngkotponhbncbfweqx.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_ZfcT9BIp74ycdHknOCNV8A_cfUgaPzF';
 const supabaseConfigured = SUPABASE_URL.startsWith('http') && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
-const supabase = supabaseConfigured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const supabase = supabaseConfigured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { fetch: (url, opts) => fetchWithTimeout(url, opts, 25000) } }) : null;
 
 // ------------------------------------------------------------
 // Storage adapter — three tiers:
@@ -138,10 +140,15 @@ const persistence = supabaseConfigured
 const UPLOAD_API_URL = '/api/upload';
 let storageUploadFailed = null;
 
+const loginLimiter = createLimiter(6, 60 * 1000);
+const MAX_UPLOAD_MB = 200;
 const uploadToR2 = async (file, pathPrefix) => {
+  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+    throw new Error(`"${file.name}" is over the ${MAX_UPLOAD_MB}MB limit. Choose a smaller file.`);
+  }
   console.log('[uploadToR2] Starting upload:', { fileName: file.name, fileSize: file.size, fileType: file.type, pathPrefix });
   
-  const presignRes = await fetch(UPLOAD_API_URL, {
+  const presignRes = await withRetry(() => fetchWithTimeout(UPLOAD_API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -150,7 +157,7 @@ const uploadToR2 = async (file, pathPrefix) => {
       fileSize: file.size,
       contentType: file.type || 'application/octet-stream'
     })
-  });
+  }, 15000), 1);
 
   console.log('[uploadToR2] API presign response status:', presignRes.status);
 
@@ -170,11 +177,11 @@ const uploadToR2 = async (file, pathPrefix) => {
   if (!publicUrl) throw new Error('/api/upload did not return a publicUrl');
 
   console.log('[uploadToR2] Uploading file to R2...');
-  const uploadRes = await fetch(uploadUrl, {
+  const uploadRes = await fetchWithTimeout(uploadUrl, {
     method: 'PUT',
     headers: { 'Content-Type': file.type || 'application/octet-stream' },
     body: file
-  });
+  }, 10 * 60 * 1000);
 
   console.log('[uploadToR2] R2 upload response status:', uploadRes.status);
 
@@ -647,6 +654,8 @@ export default function App() {
   // notifications log
   // ------------------------------------------------------------
   const [notifications, setNotifications] = useState([]);
+  // Contact-form messages (read by editors on the Help & Info page).
+  const [messages, setMessages] = useState([]);
   const [history, setHistory] = useState([]); // persistent action history / audit trail
   const [notifUnread, setNotifUnread] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -800,6 +809,17 @@ export default function App() {
   };
 
   const [activeTab, setActiveTab] = useState('home');
+  const [infoSection, setInfoSection] = useState('faq');
+  // Readable name for the current page: used for the tab title and breadcrumbs.
+  const pageLabel = activeTab === 'home' ? 'Home'
+    : activeTab === 'author' ? 'Author Profile'
+    : activeTab === 'info' ? 'Help & Info'
+    : (CORE_MODULES.find(m => m.id === activeTab)?.label || folders.find(f => f.id === activeTab)?.title || 'Portal');
+  useEffect(() => {
+    const t = activeTab === 'home' ? `${SITE_NAME} · Nasugbu East Senior High School` : `${pageLabel} · ${SITE_NAME}`;
+    document.title = t;
+    trackPage(t);
+  }, [activeTab, pageLabel]);
   const activeFolder = folders.find(f => f.id === activeTab);
   const activeModule = activeFolder ? activeFolder.module : activeTab;
   const activeFolderId = activeFolder ? activeFolder.id : null;
@@ -1253,6 +1273,7 @@ export default function App() {
     if (Array.isArray(data.quizzes)) setQuizzes(data.quizzes);
     if (Array.isArray(data.quizRecords)) setQuizRecords(data.quizRecords);
     if (Array.isArray(data.notifications)) setNotifications(data.notifications);
+    if (Array.isArray(data.messages)) setMessages(data.messages);
     if (Array.isArray(data.history)) setHistory(data.history);
     // onlineUsers is intentionally NOT restored from the saved blob — presence
     // is live, transient state owned by the Supabase Presence channel (or the
@@ -1438,7 +1459,7 @@ export default function App() {
       const payload = {
         __v: nextVersion,
         sections, folders, announcements, projectFiles, achievers,
-        quizzes, quizRecords, notifications, settings: { ...settings, theme: undefined }, portalTitle,
+        quizzes, quizRecords, notifications, messages, settings: { ...settings, theme: undefined }, portalTitle,
         author: { name: authorName, title: authorTitle, bio: authorBio, photo: authorPhotoUrl },
         authors,
         history,
@@ -1467,7 +1488,7 @@ export default function App() {
       attemptSave(2);
     }, 500);
     return () => clearTimeout(handle);
-  }, [sections, folders, announcements, projectFiles, achievers, quizzes, quizRecords, notifications, settings, portalTitle, authorName, authorTitle, authorBio, authorPhotoUrl, authors, dataLoaded]);
+  }, [sections, folders, announcements, projectFiles, achievers, quizzes, quizRecords, notifications, messages, settings, portalTitle, authorName, authorTitle, authorBio, authorPhotoUrl, authors, dataLoaded]);
 
   // ------------------------------------------------------------
   // AUTH: sign in
@@ -1497,6 +1518,8 @@ export default function App() {
   const handleSignIn = (e) => {
     e.preventDefault();
     setAuthError('');
+    const wait = loginLimiter.check();
+    if (wait) return setAuthError(`Too many attempts. Please wait ${wait} seconds and try again.`);
     const email = signinEmail.trim().toLowerCase();
 
     if (email === CREATOR_EMAIL) {
@@ -1805,6 +1828,12 @@ export default function App() {
   // Same behaviour as tapping a sidebar module: switch view, close the mobile
   // drawer and reset per-view sub-state. The live Home page uses this too.
   const goToModule = (id) => { setActiveTab(id); setMobileNavOpen(false); setQuizMode('list'); setExpandedAchieverId(null); };
+  const goToInfo = (section = 'faq') => { setInfoSection(section); goToModule('info'); };
+  const sendMessage = ({ name, topic, text }) => {
+    setMessages(prev => [{ id: nextId(), name, topic, text, from: currentUser?.email || 'guest', ts: new Date().toLocaleString() }, ...prev].slice(0, 200));
+    logAction('sent a message', topic);
+  };
+  const teamList = [{ name: authorName, title: authorTitle, photo: authorPhotoUrl }, ...authors.filter(a => a?.name).map(a => ({ name: a.name, title: a.title, photo: a.photo }))];
   const activeQuiz = quizzes.find(q => q.id === activeQuizId) || null;
   const activeQuizRecords = quizRecords.filter(r => r.quizId === activeQuizId);
   const recordSections = Array.from(new Set(activeQuizRecords.map(r => (r.section || '').trim()).filter(Boolean))).sort();
@@ -1924,6 +1953,9 @@ export default function App() {
           <button onClick={() => setActiveTab('author')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold ${activeTab === 'author' ? 'active-nav-item' : ''}`} style={activeTab === 'author' ? { backgroundColor: C.accent, color: C.onPrimary, border: `1px solid ${C.accent}` } : { color: C.textDim }}>
             <User className="w-4 h-4" /> Author Profile
           </button>
+          <button onClick={() => goToInfo('faq')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold ${activeTab === 'info' ? 'active-nav-item' : ''}`} style={activeTab === 'info' ? { backgroundColor: C.accent, color: C.onPrimary, border: `1px solid ${C.accent}` } : { color: C.textDim }} aria-current={activeTab === 'info' ? 'page' : undefined}>
+            <HelpCircle className="w-4 h-4" /> Help &amp; Info
+          </button>
         </div>
 
         <div className="mt-4 p-3 rounded-xl flex items-start gap-2" style={{ backgroundColor: C.bg, border: `1px solid ${C.border}` }}>
@@ -2042,6 +2074,17 @@ export default function App() {
         </header>
 
         <main key={activeTab} className={`echo-page-enter p-4 sm:p-6 ${activeTab === 'home' ? 'max-w-6xl' : 'max-w-5xl'} w-full mx-auto pb-24`}>
+          {activeTab !== 'home' && (
+            <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: C.textDim }}>
+              <button onClick={() => goToModule('home')} className="underline-offset-2 hover:underline" style={{ color: C.accent }}>Home</button>
+              <ChevronRight className="w-3 h-3" aria-hidden="true" />
+              <span aria-current="page" className="truncate">{pageLabel}</span>
+            </nav>
+          )}
+          {/* HELP & INFO */}
+          {activeTab === 'info' && (
+            <InfoView C={C} section={infoSection} onSection={setInfoSection} user={currentUser} messages={messages} onSend={sendMessage} onDeleteMessage={(id) => setMessages(prev => prev.filter(m => m.id !== id))} isEditor={canEditEverything} team={teamList} onNavigate={goToModule} />
+          )}
           {/* LIVE HOME */}
           {activeTab === 'home' && (
             <HomeView
@@ -2669,7 +2712,26 @@ export default function App() {
             </div>
           )}
         </main>
+        <footer className="px-4 sm:px-6 pb-24 md:pb-8 max-w-6xl w-full mx-auto">
+          <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-4 text-[11px] font-semibold" style={{ borderTop: `1px solid ${C.border}`, color: C.textDim }}>
+            <span className="font-extrabold" style={{ color: C.text }}>{SITE_NAME}</span>
+            <button onClick={() => goToModule('announcements')} className="hover:underline">Announcements</button>
+            <button onClick={() => goToModule('quizzes')} className="hover:underline">Quizzes</button>
+            <button onClick={() => goToInfo('faq')} className="hover:underline">FAQs</button>
+            <button onClick={() => goToInfo('contact')} className="hover:underline">Contact</button>
+            <button onClick={() => goToInfo('visit')} className="hover:underline">Directions</button>
+            <button onClick={() => goToInfo('privacy')} className="hover:underline">Privacy</button>
+          </nav>
+        </footer>
       </div>
+
+      {/* Sticky call-to-action for phones, on the Home page only */}
+      {activeTab === 'home' && (
+        <div className="md:hidden fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-4 flex gap-2" style={{ backgroundColor: C.panel, borderTop: `1px solid ${C.border}` }}>
+          <button onClick={() => goToModule('announcements')} className="flex-1 rounded-full py-3 text-xs font-bold" style={{ backgroundColor: C.accent, color: C.onPrimary }}>Latest news</button>
+          <button onClick={() => goToModule('quizzes')} className="flex-1 rounded-full py-3 text-xs font-bold" style={{ backgroundColor: C.panelAlt, color: C.text, border: `1px solid ${C.border}` }}>Take a quiz</button>
+        </div>
+      )}
 
       {/* ANNOUNCEMENT MODAL */}
       {annModal.open && annModal.data && (

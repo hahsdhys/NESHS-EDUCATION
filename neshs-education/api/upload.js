@@ -20,9 +20,27 @@ function getPublicBase() {
   return raw.replace(/\/+$/, '');
 }
 
+// Best-effort rate limit per IP (resets when the serverless instance recycles).
+const RATE_WINDOW_MS = 60 * 1000;
+const RATE_MAX = 30;
+const hits = new Map();
+function tooManyRequests(ip) {
+  const now = Date.now();
+  const recent = (hits.get(ip) || []).filter(t => now - t < RATE_WINDOW_MS);
+  recent.push(now);
+  hits.set(ip, recent);
+  if (hits.size > 5000) hits.clear();
+  return recent.length > RATE_MAX;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim();
+  if (tooManyRequests(ip)) {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({ error: 'Too many uploads. Please wait a minute and try again.' });
   }
 
   try {
