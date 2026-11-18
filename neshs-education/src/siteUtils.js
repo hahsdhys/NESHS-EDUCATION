@@ -72,9 +72,21 @@ export const installErrorLogging = () => {
 };
 
 // Google Analytics loads only when a measurement ID is set (VITE_GA_ID).
+const CONSENT_KEY = 'neshs_cookie_consent';
+export const getConsent = () => { try { return localStorage.getItem(CONSENT_KEY) || ''; } catch { return ''; } };
+export const setConsent = (value) => {
+  try { localStorage.setItem(CONSENT_KEY, value); } catch { /* ignore */ }
+  if (value === 'accepted') installAnalytics();
+  else if (window.gtag) { const id = import.meta.env?.VITE_GA_ID; if (id) window[`ga-disable-${id}`] = true; }
+};
+
+let analyticsLoaded = false;
 export const installAnalytics = () => {
+  if (getConsent() !== 'accepted' || analyticsLoaded) return;
   const id = import.meta.env?.VITE_GA_ID;
   if (!id || !/^G-[A-Z0-9]+$/i.test(id)) return;
+  analyticsLoaded = true;
+  window[`ga-disable-${id}`] = false;
   const s = document.createElement('script');
   s.async = true;
   s.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;

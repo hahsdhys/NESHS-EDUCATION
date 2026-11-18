@@ -5,6 +5,7 @@ import { COLOR_THEMES, getColorTheme, useTheme } from './ThemeContext.jsx';
 import LoadingScreen from './LoadingScreen.jsx';
 import HomeView from './HomeView.jsx';
 import InfoView from './InfoView.jsx';
+import { LegalModal, LEGAL_VERSION } from './Legal.jsx';
 import { fetchWithTimeout, withRetry, createLimiter, trackPage, SITE_NAME } from './siteUtils.js';
 import {
   User, LogOut, Search, BookOpen, Award, FileSpreadsheet,
@@ -646,7 +647,7 @@ export default function App() {
 
   const resetWizard = () => {
     setWizStep('role'); setWizRole(null);
-    setWizData({ email: '', name: '', sectionId: '', idFileName: '', idVerified: false, rank: '', gatePassword: '', creatorPwd: '', pwd1: '', pwd2: '' });
+    setWizData({ email: '', name: '', sectionId: '', idFileName: '', idVerified: false, rank: '', gatePassword: '', creatorPwd: '', pwd1: '', pwd2: '', agree: false });
     setAuthError('');
   };
 
@@ -810,6 +811,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('home');
   const [infoSection, setInfoSection] = useState('faq');
+  const [legalDoc, setLegalDoc] = useState(null); // 'privacy' | 'terms' | 'cookies' | null
   // Readable name for the current page: used for the tab title and breadcrumbs.
   const pageLabel = activeTab === 'home' ? 'Home'
     : activeTab === 'author' ? 'Author Profile'
@@ -1602,6 +1604,7 @@ export default function App() {
     if (!isGmailAddress(wizData.email)) return setAuthError('Please sign up with a Gmail address (e.g. name@gmail.com).');
     if (wizData.pwd1.length < 4) return setAuthError('Password must be at least 4 characters.');
     if (wizData.pwd1 !== wizData.pwd2) return setAuthError('Passwords do not match.');
+    if (!wizData.agree) return setAuthError('Please agree to the Terms of Use and Privacy Notice to continue.');
     const email = wizData.email.trim().toLowerCase();
     if (accounts.some(a => a.email === email)) return setAuthError('An account with that email already exists.');
 
@@ -1611,7 +1614,9 @@ export default function App() {
       role: wizRole,
       password: wizData.pwd1,
       sectionId: wizRole === 'student' ? wizData.sectionId : null,
-      rank: wizRole === 'teacher' ? wizData.rank.trim() : null
+      rank: wizRole === 'teacher' ? wizData.rank.trim() : null,
+      consentAt: new Date().toISOString(),
+      consentVersion: LEGAL_VERSION
     };
     setAccounts(prev => [...prev, account]);
     setCurrentUser(account);
@@ -1802,7 +1807,11 @@ export default function App() {
                     <p className="text-xs font-bold" style={{ color: C.textDim }}>Create a password to save your account</p>
                     <Field type="password" placeholder="Create Password" value={wizData.pwd1} onChange={e => setWizData({ ...wizData, pwd1: e.target.value })} />
                     <Field type="password" placeholder="Confirm Password" value={wizData.pwd2} onChange={e => setWizData({ ...wizData, pwd2: e.target.value })} />
-                    <Btn className="w-full py-3" onClick={finishSignup} disabled={(wizRole !== 'editor' && !isGmailAddress(wizData.email)) || wizData.pwd1.length < 4 || wizData.pwd1 !== wizData.pwd2} reducedMotion={reducedMotion}>Create Account &amp; Continue</Btn>
+                    <label className="flex items-start gap-2 text-[11px] leading-snug cursor-pointer" style={{ color: C.textDim }}>
+                      <input type="checkbox" checked={!!wizData.agree} onChange={e => setWizData({ ...wizData, agree: e.target.checked })} className="mt-0.5 shrink-0" />
+                      <span>I have read and agree to the <button type="button" onClick={() => setLegalDoc('terms')} className="underline font-bold" style={{ color: C.accent }}>Terms of Use</button> and <button type="button" onClick={() => setLegalDoc('privacy')} className="underline font-bold" style={{ color: C.accent }}>Privacy Notice</button>, and I consent to the school processing my information as described. If I am under 18, my parent or guardian knows I am signing up.</span>
+                    </label>
+                    <Btn className="w-full py-3" onClick={finishSignup} disabled={!wizData.agree || (wizRole !== 'editor' && !isGmailAddress(wizData.email)) || wizData.pwd1.length < 4 || wizData.pwd1 !== wizData.pwd2} reducedMotion={reducedMotion}>Create Account &amp; Continue</Btn>
                   </div>
                 )}
 
@@ -1814,7 +1823,13 @@ export default function App() {
               </div>
             )}
           </Card>
+          <nav aria-label="Legal" className="mt-4 flex justify-center gap-4 text-[11px] font-semibold" style={{ color: C.textDim }}>
+            <button onClick={() => setLegalDoc('terms')} className="hover:underline">Terms</button>
+            <button onClick={() => setLegalDoc('privacy')} className="hover:underline">Privacy</button>
+            <button onClick={() => setLegalDoc('cookies')} className="hover:underline">Cookies</button>
+          </nav>
         </div>
+        {legalDoc && <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} onChange={setLegalDoc} />}
       </div>
     );
   }
@@ -2721,6 +2736,8 @@ export default function App() {
             <button onClick={() => goToInfo('contact')} className="hover:underline">Contact</button>
             <button onClick={() => goToInfo('visit')} className="hover:underline">Directions</button>
             <button onClick={() => goToInfo('privacy')} className="hover:underline">Privacy</button>
+            <button onClick={() => goToInfo('terms')} className="hover:underline">Terms</button>
+            <button onClick={() => goToInfo('cookies')} className="hover:underline">Cookies</button>
           </nav>
         </footer>
       </div>

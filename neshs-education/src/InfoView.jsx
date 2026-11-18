@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { HelpCircle, Send, MapPin, ShieldCheck, Users, Clock, Trash2, CheckCircle2, ChevronDown, Navigation, Inbox, AlertTriangle } from 'lucide-react';
 import { cleanMediaUrl } from './utils/cleanMediaUrl';
+import { PrivacyDoc, TermsDoc, CookiesDoc } from './Legal.jsx';
 import { SCHOOL_MAP_QUERY, createLimiter, readErrorLog, clearErrorLog } from './siteUtils.js';
 
 // Help & Info: FAQs, contact form + thank-you, response-time promise,
@@ -12,6 +13,8 @@ export const INFO_SECTIONS = [
   { id: 'contact', label: 'Contact', icon: Send },
   { id: 'visit', label: 'Visit us', icon: MapPin },
   { id: 'privacy', label: 'Privacy', icon: ShieldCheck },
+  { id: 'terms', label: 'Terms', icon: ShieldCheck },
+  { id: 'cookies', label: 'Cookies', icon: ShieldCheck },
   { id: 'team', label: 'Team', icon: Users }
 ];
 
@@ -179,24 +182,14 @@ export default function InfoView({ C, section, onSection, user, messages, onSend
         </Section>
       )}
 
-      {section === 'privacy' && (
-        <Section C={C} title="Privacy policy">
-          <div className="space-y-4 text-sm leading-relaxed" style={{ color: C.textDim }}>
-            <p>ECHOES NESHS is a school portal. We collect only what we need to run it, in line with the Philippine Data Privacy Act of 2012 (RA 10173).</p>
-            <div><h3 className="font-bold mb-1" style={{ color: C.text }}>What we collect</h3>
-              <p>Your name, email, role, section and password when you sign up; quiz answers and scores; the messages you send us; files you upload; and whether you are online right now.</p></div>
-            <div><h3 className="font-bold mb-1" style={{ color: C.text }}>How we use it</h3>
-              <p>To sign you in, show announcements and projects, record quiz results, answer your messages and keep the portal working. We do not sell your data or use it for advertising.</p></div>
-            <div><h3 className="font-bold mb-1" style={{ color: C.text }}>Who can see it</h3>
-              <p>Announcements, uploaded files, best students and online status are visible to signed-in members. Quiz results are visible to the teacher or editor who runs the quiz. Messages are visible to editors only. Account details stay on the device you signed up on.</p></div>
-            <div><h3 className="font-bold mb-1" style={{ color: C.text }}>Services we rely on</h3>
-              <p>Vercel (hosting), Supabase (shared data), Cloudflare R2 (file storage), Google Fonts, Google Maps (only if you load the map) and Google Analytics (only if turned on for the site, with anonymized IPs).</p></div>
-            <div><h3 className="font-bold mb-1" style={{ color: C.text }}>Cookies and local storage</h3>
-              <p>We store your theme, settings and sign-in on your device so the portal remembers you. You can clear them in your browser at any time.</p></div>
-            <div><h3 className="font-bold mb-1" style={{ color: C.text }}>Your rights</h3>
-              <p>You can ask to see, correct or delete your information. Send a message from the <button onClick={() => onSection('contact')} className="font-bold underline" style={{ color: C.accent }}>Contact tab</button>. {RESPONSE_PROMISE}</p></div>
-            <p className="text-xs">Last updated: November 2026.</p>
+      {['privacy', 'terms', 'cookies'].includes(section) && (
+        <Section C={C} title={section === 'privacy' ? 'Privacy Notice' : section === 'terms' ? 'Terms of Use' : 'Cookie Notice'}>
+          <div style={{ color: C.textDim, '--lg-text': C.text, '--lg-accent': C.accent, '--lg-on': C.onPrimary, '--lg-line': C.border }}>
+            {section === 'privacy' && <PrivacyDoc onOpen={onSection} />}
+            {section === 'terms' && <TermsDoc />}
+            {section === 'cookies' && <CookiesDoc />}
           </div>
+          <p className="mt-4 text-[11px]" style={{ color: C.textDim }}>This is a plain-language notice for the school community. It is not legal advice, and the school should review it.</p>
         </Section>
       )}
 
